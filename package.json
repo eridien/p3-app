@@ -4,6 +4,7 @@
   "description": "webapp server for eridien P3",
   "main": "index.js",
   "dependencies": {
+    "raspi-i2c": "^6.1.2",
     "rpi-gpio": "^1.0.0"
   },
   "devDependencies": {},
