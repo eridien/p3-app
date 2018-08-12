@@ -25,11 +25,11 @@ const ledOnOff = async on => {
   try {
     gpiop.write(pin_led, on);
   } catch (error) {
-    console.log("pumpOnOff error:", e.message);
+    console.log("ledOnOff error:", e.message);
   }
 }
 
-var lastPwrSwOnOff = null;
+var pwrSwitchIsOn = null;
 
 const init = async () => {
   await gpiop.setup(pin_pwrsw, gpio.DIR_IN, gpio.EDGE_BOTH);
@@ -37,8 +37,8 @@ const init = async () => {
     for (let pin of pin_all_out) {
       await gpiop.setup(pin, gpio.DIR_OFF);
     }
-    lastPwrSwOnOff = ! await gpiop.read(pin_pwrsw);
-    pwrSwAction(lastPwrSwOnOff);
+    pwrSwitchIsOn = ! await gpiop.read(pin_pwrsw);
+    pwrSwAction(pwrSwitchIsOn);
   }
   catch (e) {
     console.log("init error:", e.message);
@@ -59,8 +59,8 @@ gpio.on('change', (channel, value) => {
   try {
     if (channel != pin_pwrsw) return;
     let pwrSwOnOff = !value;
-    if (pwrSwOnOff != lastPwrSwOnOff) {
-      lastPwrSwOnOff = pwrSwOnOff;
+    if (pwrSwOnOff != pwrSwitchIsOn) {
+      pwrSwitchIsOn = pwrSwOnOff;
       pwrSwAction(pwrSwOnOff);
     }
   } catch (error) {
@@ -68,4 +68,17 @@ gpio.on('change', (channel, value) => {
   }
 });
 
+var testState = off;
+
+const cycleVSTest = async () => {
+  while (true) {
+    await sleep(3000);
+    ledOnOff(testState);
+    gpiop.write(pin_vs3, testState);
+    testState = !testState;
+  }
+}
+
 init();
+
+cycleVSTest();
