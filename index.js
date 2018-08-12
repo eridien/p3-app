@@ -14,33 +14,57 @@ const gpio = require('rpi-gpio')
 const gpiop = gpio.promise;
 const sleep = require('util').promisify(setTimeout);
 
-const pumpOnOff = async on => gpiop.write(pin_vpump, on);
-const ledOnOff = async on => gpiop.write(pin_led, on);
+const pumpOnOff = async on => {
+  try {
+    gpiop.write(pin_vpump, on);
+  } catch (error) {
+    console.log("pumpOnOff error:", e.message);
+  }
+}
+const ledOnOff = async on => {
+  try {
+    gpiop.write(pin_led, on);
+  } catch (error) {
+    console.log("pumpOnOff error:", e.message);
+  }
+}
+
+var lastPwrSwOnOff = null;
 
 const init = async () => {
   await gpiop.setup(pin_pwrsw, gpio.DIR_IN, gpio.EDGE_BOTH);
   try {
     for (let pin of pin_all_out) {
-      await gpiop.setup(pin, gpio.DIR_OUT);
-      gpiop.write(pin, off);
+      await gpiop.setup(pin, gpio.DIR_OFF);
     }
-    ledOnOff(off);
-    pumpOnOff(off);
+    lastPwrSwOnOff = ! await gpiop.read(pin_pwrsw);
+    pwrSwAction(lastPwrSwOnOff);
   }
   catch (e) {
     console.log("init error:", e.message);
   }
 }
-var oldPwrSwOnOff = null;
 
-gpio.on('change', (channel, pwrSwOnOffIn) => {
-  let pwrSwOnOff = !pwrSwOnOffIn;
-  if (channel != pin_pwrsw) return;
-  if (pwrSwOnOff != oldPwrSwOnOff) {
+const pwrSwAction = pwrSwOnOff => {
+  try {
     console.log('Power switch is now', onOff(pwrSwOnOff));
-    oldPwrSwOnOff = pwrSwOnOff;
     pumpOnOff(pwrSwOnOff);
     ledOnOff(pwrSwOnOff);
+  } catch (error) {
+    console.log('pwrSwAction error:', error.message);
+  }
+}
+
+gpio.on('change', (channel, value) => {
+  try {
+    if (channel != pin_pwrsw) return;
+    let pwrSwOnOff = !value;
+    if (pwrSwOnOff != lastPwrSwOnOff) {
+      lastPwrSwOnOff = pwrSwOnOff;
+      pwrSwAction(pwrSwOnOff);
+    }
+  } catch (error) {
+    console.log('gpio.on change error:', error.message);
   }
 });
 
