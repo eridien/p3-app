@@ -68,17 +68,6 @@ gpio.on('change', (channel, value) => {
   }
 });
 
-var testState = off;
-
-const cycleVSTest = async () => {
-  while (true) {
-    await sleep(3000);
-    ledOnOff(testState);
-    gpiop.write(pin_vs3, testState);
-    testState = !testState;
-  }
-}
 
 init();
 
-cycleVSTest();
