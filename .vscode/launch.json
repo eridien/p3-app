@@ -11,7 +11,9 @@
       "address": "192.168.1.179",
       "port": 9229,
       "localRoot": "${workspaceFolder}",
-      "remoteRoot": "/root/dev/p3/app"
+      "remoteRoot": "/root/dev/p3/app",
+      "stopOnEntry": false,
+      "restart": true
     }
   ]
 }
