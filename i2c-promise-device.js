@@ -1,3 +1,4 @@
+
 class Device {
   // bus is i2c-bus bus object
   constructor(bus, address, opts) {
