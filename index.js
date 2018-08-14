@@ -4,6 +4,8 @@
 
 power = require('./power.js');
 plumbing = require('./plumbing.js');
+i2c = require('./i2c.js');
 
 power.init()
 plumbing.init();
+i2c.init()
