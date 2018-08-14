@@ -1,14 +1,15 @@
 
-const Bus = require('./i2c-promise-bus.js');
-const Mcu = require('./i2c-promise-device.js');
+const pify = require('pify');
+
+globalBus = require('i2c-bus').open(1, () => { });
+
+i2cWriteP = pify(globalBus.i2cWrite);
 
 exports.init = async () => {
-  const bus = await new Bus();
-  const mcu = await new Mcu(bus, 8);
-
   try {
     const buf = Buffer.from([0xa5]);
-    await mcu.writeRaw(1, buf);
+    await i2cWriteP(8, 1, buf);
+    console.log('done');
   } catch (e) {
     console.log('i2c error', e.message);
   }
