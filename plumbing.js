@@ -8,7 +8,7 @@ const pin_all_out = [pin_vs1, pin_vs2, pin_vs3, pin_vbleed, pin_vpump];
 const on = true, off = false;
 const onOff = on => on ? 'on' : 'off';
 
-const gpio = require('rpi-gpio')
+const gpio = require('rpi-gpio');
 const gpiop = gpio.promise;
 const sleep = require('util').promisify(setTimeout);
 
@@ -20,7 +20,7 @@ const pumpOnOff = async on => {
   }
 }
 
-exports.init = async () => {
+init = async () => {
   try {
     for (let pin of pin_all_out) {
       await gpiop.setup(pin, gpio.DIR_OFF);
@@ -30,4 +30,6 @@ exports.init = async () => {
     console.log("init error:", e.message);
   }
 }
+
+init();
 

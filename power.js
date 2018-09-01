@@ -1,4 +1,6 @@
 
+const i2c = require('./i2c');
+
 const pin_pwrsw = 11;
 const pin_led = 7;
 const on = true, off = false;
@@ -18,7 +20,7 @@ const ledOnOff = async on => {
 
 var pwrSwitchIsOn = null;
 
-exports.init = async () => {
+init = async () => {
   try {
     await gpiop.setup(pin_pwrsw, gpio.DIR_IN, gpio.EDGE_BOTH);
     await gpiop.setup(pin_led, gpio.DIR_OFF);
@@ -28,12 +30,17 @@ exports.init = async () => {
   catch (e) {
     console.log("init error:", e.message);
   }
-}
+};
+
+init();
 
 const pwrSwAction = pwrSwOnOff => {
   try {
-    console.log('Power switch is now', onOff(pwrSwOnOff));
+    console.log(); //'Power switch is now', onOff(pwrSwOnOff));
     ledOnOff(pwrSwOnOff);
+
+    i2c.test()
+
   } catch (error) {
     console.log('pwrSwAction error:', error.message);
   }
