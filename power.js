@@ -39,7 +39,7 @@ const pwrSwAction = pwrSwOnOff => {
     console.log(); //'Power switch is now', onOff(pwrSwOnOff));
     ledOnOff(pwrSwOnOff);
 
-    i2c.test()
+    i2c.test(pwrSwOnOff);
 
   } catch (error) {
     console.log('pwrSwAction error:', error.message);

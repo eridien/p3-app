@@ -1,69 +1,83 @@
 
 
 const pify = require('pify');
+const sleep = require('util').promisify(setTimeout);
 
 globalBus = require('i2c-bus').open(1, () => { });
 
 i2cReadP = pify(globalBus.i2cRead);
 i2cWriteP = pify(globalBus.i2cWrite);
 
-parseState = (motIdx, buf) => {
-  let state = buf[0];
-  let pos = ((buf[1] << 8) | buf[2]);
-  return {
-    motIdx,
-    vers: (state >> 7),
-    err: errString((state & 0x70) >> 4),
-    errBit: (state & 0x08) >> 3,
-    busy: (state & 0x04) >> 2,
-    motOn: (state & 0x02) >> 1,
-    homed: state & 1,
-    pos,
-  };
-}
+// // settings command
+// const STEPS_PER_MM = 40;
+// const opcode = 0x1f;
+// const cmdData = [
+//   100 * STEPS_PER_MM, //  max speed   (and simple move cmd speed) 
+//   300 * STEPS_PER_MM, //  max pos     (min pos is always zero))
+//   20 * STEPS_PER_MM, //  no-acceleration speed limit (and start speed when stopped)
+//   1000 * STEPS_PER_MM, //  acceleration rate (steps/sec/sec)
+//   20 * STEPS_PER_MM, //  homing speed
+//   5 * STEPS_PER_MM, //  homing back-up speed
+//   2 * STEPS_PER_MM, //  home offset distance
+//   0, //  home pos value (set cur pos to this value after homing, usually 0)
+//   0, //  use limit sw for home direction
+// ];
 
-const STEPS_PER_MM = 40;
+// home command
+const opcode = 0x10;
+const cmdData = [];
 
-const opcode = 0x1f;
-const settingsCmd = [
-  100*STEPS_PER_MM, //      max speed   (and simple move cmd speed) 
-  300*STEPS_PER_MM, //      max pos     (min pos is always zero))
-   20*STEPS_PER_MM, //      no-acceleration speed limit (and start speed when stopped)
- 1000*STEPS_PER_MM, //      acceleration rate (steps/sec/sec)
-   20*STEPS_PER_MM, //      homing speed
-    5*STEPS_PER_MM, //      homing back-up speed
-    2*STEPS_PER_MM, //      home offset distance
-                 0, //      home pos value (set cur pos to this value after homing, usually 0)
-                 0, //      use limit sw for home direction
-];
-
-let cmdBuf = new ArrayBuffer(1 + settingsCmd.length*2);
+let cmdBuf = new ArrayBuffer(1 + cmdData.length*2);
+let opcodeView = new DataView(cmdBuf, 0, 1);
 (() => {
-  let opcodeView = new DataView(cmdBuf, 0, 1);
   opcodeView.setUint8(0, opcode);
-  let wordsView = new DataView(cmdBuf, 1, settingsCmd.length*2);
-  for (const [ofs, word] of settingsCmd.entries()) {
+  let wordsView = new DataView(cmdBuf, 1, cmdData.length*2);
+  for (const [ofs, word] of cmdData.entries()) {
     wordsView.setUint16(ofs*2, word);
   } 
 })();
 
-exports.test = async () => {
+let chkState = async (motIdx) => {
+  let parseState = (motIdx, buf) => {
+    let state = buf[0];
+    let pos = ((buf[1] << 8) | buf[2]);
+    return {
+      // motIdx,
+      // vers: (state >> 7),
+      err: errString((state & 0x70) >> 4),
+      errBit: (state & 0x08) >> 3,
+      busy: (state & 0x04) >> 2,
+      motOn: (state & 0x02) >> 1,
+      homed: state & 1,
+      pos,
+    };
+  }
   try {
-    let motIdx = 0;
-    let start = Date.now(); 
-    let buf = Buffer(4);
-    await i2cWriteP(8 + motIdx, cmdBuf.byteLength, Buffer.from(cmdBuf)); // hard stop
-    await i2cReadP(8 + motIdx, buf.length, buf);
-    console.log('time(ms):', Date.now() - start);
-
-    if (buf[3] != ((buf[0] + buf[1] + buf[2]) & 0xff)) {
-      console.log('cksum error:', buf);
+    let recvBuf = Buffer(4);
+    await i2cReadP(8 + motIdx, recvBuf.length, recvBuf);
+    if (recvBuf[3] != ((recvBuf[0] + recvBuf[1] + recvBuf[2]) & 0xff)) {
+      console.log('status read cksum error:', recvBuf);
       throw (new Error('cksum error'));
     }
-    console.log(parseState(motIdx, buf));
-
+    console.log(parseState(motIdx, recvBuf));
   } catch (e) {
-    console.log('i2c error', e.message);
+    console.log('i2c read error', e.message);
+  }
+}
+
+exports.test = async (pwrSwOnOff) => {
+  let motIdx = 0;
+  try {
+    if (!pwrSwOnOff) {
+      await chkState(motIdx);
+    }
+    opcodeView.setUint8(0, pwrSwOnOff ? opcode : 0x14);  // opcode or stop
+    await i2cWriteP(8 + motIdx, cmdBuf.byteLength, Buffer.from(cmdBuf));
+    console.log('cmd sent:', '0x'+opcodeView.getUint8(0).toString(16));
+    sleep(1000);
+    await chkState(motIdx);
+  } catch (e) {
+    console.log('i2c write error', e.message);
   }
 }
 
