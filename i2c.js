@@ -45,30 +45,15 @@ i2cWriteP = pify(globalBus.i2cWrite);
 //   0, //  use limit sw for home direction
 // ];
 
-// home command
-const opcode = 0x10;
-const cmdData = [];
-
-let cmdBuf = new ArrayBuffer(1 + cmdData.length*2);
-let opcodeView = new DataView(cmdBuf, 0, 1);
-(() => {
-  opcodeView.setUint8(0, opcode);
-  let wordsView = new DataView(cmdBuf, 1, cmdData.length*2);
-  for (const [ofs, word] of cmdData.entries()) {
-    wordsView.setUint16(ofs*2, word);
-  } 
-})();
-
 let lastPos = 0;
 let lastErrBit = -1;
 let start = Date.now();
 
-let chkState = async (motIdx) => {
-  let parseState = (motIdx, buf) => {
+let chkState = async (addr) => {
+  let parseState = (buf) => {
     let state = buf[0];
     let pos = ((buf[1] << 8) | buf[2]);
     return {
-      // motIdx,
       // vers: (state >> 7),
       time: ((Date.now() - start)/1000).toFixed(3),
       err: errString((state & 0x70) >> 4),
@@ -82,37 +67,105 @@ let chkState = async (motIdx) => {
   }
   try {
     let recvBuf = Buffer(4);
-    await i2cReadP(8 + motIdx, recvBuf.length, recvBuf);
+    await i2cReadP(addr, recvBuf.length, recvBuf);
     if (recvBuf[3] != ((recvBuf[0] + recvBuf[1] + recvBuf[2]) & 0xff)) {
       console.log('status read cksum error:', recvBuf);
       throw (new Error('cksum error'));
     }
-    let state = parseState(motIdx, recvBuf);
+    let state = parseState(recvBuf);
     if (lastPos != state.pos || lastErrBit != state.errBit) {
       console.log(state);
       lastPos    = state.pos;
       lastErrBit = state.errBit;
     }
   } catch (e) {
-    console.log('i2c read error', e.message);
+    console.log('i2c status read error', e.message);
   }
 }
 
+let setOpcode = (opcode) => {
+  let cmdBuf = new ArrayBuffer(1);
+  let opcodeView = new DataView(cmdBuf, 0, 1);
+  opcodeView.setUint8(0, opcode);
+  return cmdBuf;
+}
+
+let setCmdWord = (word) => {
+  let cmdBuf = new ArrayBuffer(2);
+  let wordView = new DataView(cmdBuf, 0, 2);
+  wordView.setUint16(0, word);
+  return cmdBuf;
+}
+
+let setCmdWords = (opcode, cmdData) => {
+  let cmdBuf = new ArrayBuffer(1 + cmdData.length * 2);
+  let opcodeView = new DataView(cmdBuf, 0, 1);
+  opcodeView.setUint8(0, opcode);
+  let wordsView = new DataView(cmdBuf, 1, cmdData.length * 2);
+  for (const [ofs, word] of cmdData.entries()) {
+    wordsView.setUint16(ofs * 2, word);
+  }
+  return cmdBuf;
+}
+let motorAddr = {
+  Y: 0x08,
+  x: 0x10,
+  x: 0x11,
+  x: 0x12,
+  x: 0x18,
+  x: 0x19,
+  x: 0x1a,
+  x: 0x1b,
+  x: 0x1c,
+  x: 0x1d,
+}
+
+opcodes = {
+  startHoming: 0x10,
+  getTestPos:  0x11,
+  softStop:    0x12,
+  softStopRst: 0x13,
+  reset:       0x14,
+  motorOn:     0x15,
+  setHomePos:  0x16,
+  settings:    0x1f,
+}
+
 exports.test = async (pwrSwOnOff) => {
-  let motIdx = 0;
+  let addr = motorAddr.Y;
+  let cmdBuf;
   try {
-    if (!pwrSwOnOff) {
-      await chkState(motIdx);
+    if (pwrSwOnOff) {
+
+      console.log('send settings');
+      cmdBuf = setCmdWords(opcodes.settings, [
+         4000, // max speed is 100 mm
+        16000, // max pos is 400 mm
+         1200, // no-acceleration ms->speed limit (30 mm/sec)
+        40000, // acceleration rate steps/sec/sec  (1000 mm/sec/sec)
+         4000, // homing speed (100 mm/sec)
+           60, // homing back-up ms->speed (1.5 mm/sec)
+           40, // home offset distance: 1 mm
+            0, // home pos value, set cur pos to this after homing
+            0, // use limit sw for home direction
+      ]);
+      await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
+      
+      console.log('send home-set');
+      cmdBuf = setOpcode(opcodes.setHomePos);
+      await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
+      
+      console.log('send move to 200 mm'); 
+      cmdBuf = setCmdWord(8000);
+      await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf)); // move to 200 mm
     }
-    opcodeView.setUint8(0, pwrSwOnOff ? opcode : 0x13);  // opcode or soft stop/reset
-    await i2cWriteP(8 + motIdx, cmdBuf.byteLength, Buffer.from(cmdBuf));
-    console.log('cmd sent:', '0x'+opcodeView.getUint8(0).toString(16));
     while (pwr.isPwrSwOn()) {
       sleep(10);
-      await chkState(motIdx);
+      await chkState(addr);
     }
   } catch (e) {
-    console.log('i2c write error', e.message);
+    chkState(addr);
+    console.log('Error:', e.message);
   }
 }
 
@@ -128,20 +181,6 @@ errString = (code) => {
     case 7: return "move cmd when not homed";
   }
 }
-
-// I2C motor addresses
-// Y: 0x08
-//
-//    0x10
-//    0x11
-//    0x12
-//
-//    0x18
-//    0x19
-//    0x1a
-//    0x1b
-//    0x1c
-//    0x1d
 
 // steps are in 1/8 step (bipolar) or one phase (unipolar)
 //    for bipolar:
