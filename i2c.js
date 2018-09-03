@@ -1,9 +1,31 @@
 
+/*
+/boot/config.txt
+/boot/overlays/README
+
+dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=2,i2c_gpio_scl=3,i2c_gpio_delay_us=1
+
+Name:   i2c-gpio
+Info:   Adds support for software i2c controller on gpio pins
+Load:   dtoverlay=i2c-gpio,<param>=<val>
+Params: i2c_gpio_sda            GPIO used for I2C data (default "23")
+        i2c_gpio_scl            GPIO used for I2C clock (default "24")
+        i2c_gpio_delay_us       Clock delay in microseconds
+                                (default "2" = ~100kHz)
+        bus                     Set to a unique, non-zero value if wanting
+                                multiple i2c-gpio busses. If set, will be used
+                                as the preferred bus number (/dev/i2c-<n>). If
+                                not set, the default value is 0, but the bus
+                                number will be dynamically assigned - probably
+                                3.
+*/
+
+const pwr = require('./power');
 
 const pify = require('pify');
 const sleep = require('util').promisify(setTimeout);
 
-globalBus = require('i2c-bus').open(1, () => { });
+globalBus = require('i2c-bus').open(3, () => { });
 
 i2cReadP = pify(globalBus.i2cRead);
 i2cWriteP = pify(globalBus.i2cWrite);
@@ -37,6 +59,10 @@ let opcodeView = new DataView(cmdBuf, 0, 1);
   } 
 })();
 
+let lastPos = 0;
+let lastErrBit = -1;
+let start = Date.now();
+
 let chkState = async (motIdx) => {
   let parseState = (motIdx, buf) => {
     let state = buf[0];
@@ -44,12 +70,14 @@ let chkState = async (motIdx) => {
     return {
       // motIdx,
       // vers: (state >> 7),
+      time: ((Date.now() - start)/1000).toFixed(3),
       err: errString((state & 0x70) >> 4),
       errBit: (state & 0x08) >> 3,
       busy: (state & 0x04) >> 2,
       motOn: (state & 0x02) >> 1,
       homed: state & 1,
       pos,
+      speed: pos - lastPos,
     };
   }
   try {
@@ -59,7 +87,12 @@ let chkState = async (motIdx) => {
       console.log('status read cksum error:', recvBuf);
       throw (new Error('cksum error'));
     }
-    console.log(parseState(motIdx, recvBuf));
+    let state = parseState(motIdx, recvBuf);
+    if (lastPos != state.pos || lastErrBit != state.errBit) {
+      console.log(state);
+      lastPos    = state.pos;
+      lastErrBit = state.errBit;
+    }
   } catch (e) {
     console.log('i2c read error', e.message);
   }
@@ -71,11 +104,13 @@ exports.test = async (pwrSwOnOff) => {
     if (!pwrSwOnOff) {
       await chkState(motIdx);
     }
-    opcodeView.setUint8(0, pwrSwOnOff ? opcode : 0x14);  // opcode or stop
+    opcodeView.setUint8(0, pwrSwOnOff ? opcode : 0x13);  // opcode or soft stop/reset
     await i2cWriteP(8 + motIdx, cmdBuf.byteLength, Buffer.from(cmdBuf));
     console.log('cmd sent:', '0x'+opcodeView.getUint8(0).toString(16));
-    sleep(1000);
-    await chkState(motIdx);
+    while (pwr.isPwrSwOn()) {
+      sleep(10);
+      await chkState(motIdx);
+    }
   } catch (e) {
     console.log('i2c write error', e.message);
   }
@@ -93,6 +128,20 @@ errString = (code) => {
     case 7: return "move cmd when not homed";
   }
 }
+
+// I2C motor addresses
+// Y: 0x08
+//
+//    0x10
+//    0x11
+//    0x12
+//
+//    0x18
+//    0x19
+//    0x1a
+//    0x1b
+//    0x1c
+//    0x1d
 
 // steps are in 1/8 step (bipolar) or one phase (unipolar)
 //    for bipolar:

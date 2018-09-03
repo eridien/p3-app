@@ -38,13 +38,15 @@ const pwrSwAction = pwrSwOnOff => {
   try {
     console.log(); //'Power switch is now', onOff(pwrSwOnOff));
     ledOnOff(pwrSwOnOff);
-
+    pwrSwIsOn = pwrSwOnOff;
     i2c.test(pwrSwOnOff);
 
   } catch (error) {
     console.log('pwrSwAction error:', error.message);
   }
 }
+
+exports.isPwrSwOn = () => pwrSwIsOn;
 
 gpio.on('change', (channel, value) => {
   try {
