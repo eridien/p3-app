@@ -13,7 +13,8 @@
       "localRoot": "${workspaceFolder}",
       "remoteRoot": "/root/dev/p3/app",
       "stopOnEntry": false,
-      "restart": true
+      "restart": true,
+      "timeout": 120000
     }
   ]
 }

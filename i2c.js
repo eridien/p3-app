@@ -2,22 +2,7 @@
 /*
 /boot/config.txt
 /boot/overlays/README
-
 dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=2,i2c_gpio_scl=3,i2c_gpio_delay_us=1
-
-Name:   i2c-gpio
-Info:   Adds support for software i2c controller on gpio pins
-Load:   dtoverlay=i2c-gpio,<param>=<val>
-Params: i2c_gpio_sda            GPIO used for I2C data (default "23")
-        i2c_gpio_scl            GPIO used for I2C clock (default "24")
-        i2c_gpio_delay_us       Clock delay in microseconds
-                                (default "2" = ~100kHz)
-        bus                     Set to a unique, non-zero value if wanting
-                                multiple i2c-gpio busses. If set, will be used
-                                as the preferred bus number (/dev/i2c-<n>). If
-                                not set, the default value is 0, but the bus
-                                number will be dynamically assigned - probably
-                                3.
 */
 
 const pwr = require('./power');
@@ -29,21 +14,6 @@ globalBus = require('i2c-bus').open(3, () => { });
 
 i2cReadP = pify(globalBus.i2cRead);
 i2cWriteP = pify(globalBus.i2cWrite);
-
-// // settings command
-// const STEPS_PER_MM = 40;
-// const opcode = 0x1f;
-// const cmdData = [
-//   100 * STEPS_PER_MM, //  max speed   (and simple move cmd speed) 
-//   300 * STEPS_PER_MM, //  max pos     (min pos is always zero))
-//   20 * STEPS_PER_MM, //  no-acceleration speed limit (and start speed when stopped)
-//   1000 * STEPS_PER_MM, //  acceleration rate (steps/sec/sec)
-//   20 * STEPS_PER_MM, //  homing speed
-//   5 * STEPS_PER_MM, //  homing back-up speed
-//   2 * STEPS_PER_MM, //  home offset distance
-//   0, //  home pos value (set cur pos to this value after homing, usually 0)
-//   0, //  use limit sw for home direction
-// ];
 
 let lastPos = 0;
 let lastErrBit = -1;
@@ -79,7 +49,8 @@ let chkState = async (addr) => {
       lastErrBit = state.errBit;
     }
   } catch (e) {
-    console.log('i2c status read error', e.message);
+    console.log('i2c status read error:', e.message);
+    sleep(1000);
   }
 }
 
@@ -120,7 +91,9 @@ let motorAddr = {
   x: 0x1d,
 }
 
-opcodes = {
+let opcode = {
+  move:        0x8000,
+  speedMove:   0x4000,
   startHoming: 0x10,
   getTestPos:  0x11,
   softStop:    0x12,
@@ -136,36 +109,36 @@ exports.test = async (pwrSwOnOff) => {
   let cmdBuf;
   try {
     if (pwrSwOnOff) {
-
-      console.log('send settings');
-      cmdBuf = setCmdWords(opcodes.settings, [
-         4000, // max speed is 100 mm
-        16000, // max pos is 400 mm
-         1200, // no-acceleration ms->speed limit (30 mm/sec)
-        40000, // acceleration rate steps/sec/sec  (1000 mm/sec/sec)
-         4000, // homing speed (100 mm/sec)
-           60, // homing back-up ms->speed (1.5 mm/sec)
-           40, // home offset distance: 1 mm
-            0, // home pos value, set cur pos to this after homing
-            0, // use limit sw for home direction
-      ]);
-      await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
+      // console.log('send settings');
+      // cmdBuf = setCmdWords(opcode.settings, [
+      //    4000, // max speed is 100 mm
+      //   16000, // max pos is 400 mm
+      //    1200, // no-acceleration speed limit (30 mm/sec)
+      //   40000, // acceleration rate steps/sec/sec  (1000 mm/sec/sec)
+      //    4000, // homing speed (100 mm/sec)
+      //      60, // homing back-up ms->speed (1.5 mm/sec)
+      //      40, // home offset distance: 1 mm
+      //       0, // home pos value, set cur pos to this after homing
+      //       0, // use limit sw for home direction, 1: norm, 2: reverse
+      // ]);
+      // await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
       
       console.log('send home-set');
-      cmdBuf = setOpcode(opcodes.setHomePos);
+      cmdBuf = setOpcode(opcode.setHomePos);
       await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
       
       console.log('send move to 200 mm'); 
-      cmdBuf = setCmdWord(8000);
+      cmdBuf = setCmdWord(opcode.move + 8000);
       await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf)); // move to 200 mm
     }
     while (pwr.isPwrSwOn()) {
-      sleep(10);
+      sleep(1000);
       await chkState(addr);
     }
   } catch (e) {
     chkState(addr);
-    console.log('Error:', e.message);
+    console.log('I2C test error:', e.message);
+    sleep(100);
   }
 }
 
@@ -218,7 +191,7 @@ errString = (code) => {
 //
 //   -- move ommands --
 //   1aaa aaaa  goto command, top 7 bits of goto addr
-//      aaaa aaaa followed by bottom 8 bits
+//     aaaa aaaa followed by bottom 8 bits
 //   01ss ssss (speed-move cmd) set max speed = s*256 steps/sec and move to addr
 //     0aaa aaaa top 7 bits of move addr
 //     aaaa aaaa bottom 8 bits
@@ -232,7 +205,7 @@ errString = (code) => {
 //   0001 0101  motor on (hold place, reset off)
 //   0001 0110  set curpos to home pos value setting (fake homing)
 //
-//   -- 17 byte settings command --
+//   -- 19 byte settings command --
 //   0001 1111  load settings, 16-bit values
 //      max speed   (and simple move cmd speed) 
 //      max pos     (min pos is always zero))
@@ -242,7 +215,8 @@ errString = (code) => {
 //      homing back-up speed
 //      home offset distance
 //      home pos value (set cur pos to this value after homing, usually 0)
-//
+//      use limit sw for home direction
+
 // -- 4-byte state response --
 // error code and bit cleared on status read, only on motor being read
 // Error codes 
