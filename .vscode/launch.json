@@ -14,7 +14,7 @@
       "remoteRoot": "/root/dev/p3/app",
       "stopOnEntry": false,
       "restart": true,
-      "timeout": 120000
+      "timeout": 1000000
     }
   ]
 }

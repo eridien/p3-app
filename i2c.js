@@ -23,6 +23,9 @@ let chkState = async (addr) => {
   let parseState = (buf) => {
     let state = buf[0];
     let pos = ((buf[1] << 8) | buf[2]);
+    if(pos > 32767) {
+      pos -= 65536;
+    }
     return {
       // vers: (state >> 7),
       time: ((Date.now() - start)/1000).toFixed(3),
@@ -50,7 +53,7 @@ let chkState = async (addr) => {
     }
   } catch (e) {
     console.log('i2c status read error:', e.message);
-    sleep(1000);
+    await sleep(1000);
   }
 }
 
@@ -109,36 +112,40 @@ exports.test = async (pwrSwOnOff) => {
   let cmdBuf;
   try {
     if (pwrSwOnOff) {
-      // console.log('send settings');
-      // cmdBuf = setCmdWords(opcode.settings, [
-      //    4000, // max speed is 100 mm
-      //   16000, // max pos is 400 mm
-      //    1200, // no-acceleration speed limit (30 mm/sec)
-      //   40000, // acceleration rate steps/sec/sec  (1000 mm/sec/sec)
-      //    4000, // homing speed (100 mm/sec)
-      //      60, // homing back-up ms->speed (1.5 mm/sec)
-      //      40, // home offset distance: 1 mm
-      //       0, // home pos value, set cur pos to this after homing
-      //       0, // use limit sw for home direction, 1: norm, 2: reverse
-      // ]);
-      // await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
+      console.log('send settings');
+      cmdBuf = setCmdWords(opcode.settings, [
+
+         4000, // max speed is 100 mm
+
+        16000, // max pos is 400 mm
+         1200, // atart/stop speed limit (30 mm/sec)
+
+        40000, // acceleration rate steps/sec/sec  (1000 mm/sec/sec)
+
+         4000, // homing speed (100 mm/sec)
+           60, // homing back-up ms->speed (1.5 mm/sec)
+           40, // home offset distance: 1 mm
+            0, // home pos value, set cur pos to this after homing
+            0, // use limit sw for home direction, 1: norm, 2: reverse
+      ]);
+      await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
       
       console.log('send home-set');
       cmdBuf = setOpcode(opcode.setHomePos);
       await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
       
-      console.log('send move to 200 mm'); 
-      cmdBuf = setCmdWord(opcode.move + 8000);
+      console.log('send move to 300 mm'); 
+      cmdBuf = setCmdWord(opcode.move + 12000);
       await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf)); // move to 200 mm
     }
     while (pwr.isPwrSwOn()) {
-      sleep(1000);
+      await sleep(20);
       await chkState(addr);
     }
   } catch (e) {
     chkState(addr);
     console.log('I2C test error:', e.message);
-    sleep(100);
+    await sleep(100);
   }
 }
 
