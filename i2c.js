@@ -15,27 +15,38 @@ globalBus = require('i2c-bus').open(3, () => { });
 i2cReadP = pify(globalBus.i2cRead);
 i2cWriteP = pify(globalBus.i2cWrite);
 
+let stateByte;
+let lastStateByte = -1;
 let lastPos = 0;
 let lastErrBit = -1;
 let start = Date.now();
+let lastTime = start;
+let lastSpeed = 0;
 
 let chkState = async (addr) => {
   let parseState = (buf) => {
-    let state = buf[0];
+    stateByte = buf[0];
     let pos = ((buf[1] << 8) | buf[2]);
     if(pos > 32767) {
       pos -= 65536;
     }
+    let now = Date.now();
+    let elapsedSecs = (now - lastTime)/1000;
+    lastTime = now;
+    let speed = Math.round((  pos - lastPos  ) / elapsedSecs);
+    let accel = Math.round((speed - lastSpeed) / elapsedSecs);
+    lastSpeed = speed;
     return {
-      // vers: (state >> 7),
-      time: ((Date.now() - start)/1000).toFixed(3),
-      err: errString((state & 0x70) >> 4),
-      errBit: (state & 0x08) >> 3,
-      busy: (state & 0x04) >> 2,
-      motOn: (state & 0x02) >> 1,
-      homed: state & 1,
+      time: ((now - start)/1000).toFixed(2),
+      // vers: (stateByte >> 7),
+      err: errString((stateByte & 0x70) >> 4),
+      errBit: (stateByte & 0x08) >> 3,
+      busy: (stateByte & 0x04) >> 2,
+      motOn: (stateByte & 0x02) >> 1,
+      homed: stateByte & 1,
       pos,
-      speed: pos - lastPos,
+      speed,
+      accel,
     };
   }
   try {
@@ -46,10 +57,14 @@ let chkState = async (addr) => {
       throw (new Error('cksum error'));
     }
     let state = parseState(recvBuf);
-    if (lastPos != state.pos || lastErrBit != state.errBit) {
+    if (lastStateByte != stateByte ||
+        lastPos       != state.pos || 
+        lastErrBit    != state.errBit) {
       console.log(state);
-      lastPos    = state.pos;
-      lastErrBit = state.errBit;
+      console.log();
+      lastStateByte = stateByte;
+      lastPos       = state.pos;
+      lastErrBit    = state.errBit;
     }
   } catch (e) {
     console.log('i2c status read error:', e.message);
@@ -106,22 +121,19 @@ let opcode = {
   setHomePos:  0x16,
   settings:    0x1f,
 }
-
 exports.test = async (pwrSwOnOff) => {
   let addr = motorAddr.Y;
   let cmdBuf;
   try { 
-    let tgtPos = 30000;
+    let tgtPos = 12000;
     if (pwrSwOnOff) {
       console.log('send settings');
       cmdBuf = setCmdWords(opcode.settings, [
          4000, // max speed
         32000, // max pos is 800 mm
          1200, // start/stop speed limit (30 mm/sec)
-
-            1, // use acceleration
-               // accel values: 4000, 8000, 16000, 24000, 32000, 40000, 50000, 60000
-            0, // acceleration code 0: 100 mm/sec/sec, 7: 1500 mm/sec/sec
+               // accel values: 0, 8000, 16000, 24000, 32000, 40000, 50000, 60000
+            5, // acceleration code 0: 100 mm/sec/sec, 7: 1500 mm/sec/sec
 
          4000, // homing speed (100 mm/sec)
            60, // homing back-up ms->speed (1.5 mm/sec)
@@ -137,7 +149,7 @@ exports.test = async (pwrSwOnOff) => {
       
       console.log('send move to tgtPos'); 
       cmdBuf = setCmdWord(opcode.move + tgtPos);
-      await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf)); // move to 200 mm
+      await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
     }
     while (pwr.isPwrSwOn()) {
       await sleep(20);
@@ -218,7 +230,7 @@ errString = (code) => {
 //      max speed   (and simple move cmd speed) 
 //      max pos     (min pos is always zero))
 //      no-acceleration speed limit (and start speed when stopped)
-//      acceleration rate (steps/sec/sec)
+//      acceleration rate table index 0..7 (steps/sec/sec), 0 is off
 //      homing speed
 //      homing back-up speed
 //      home offset distance
