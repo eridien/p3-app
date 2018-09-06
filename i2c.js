@@ -110,17 +110,18 @@ let opcode = {
 exports.test = async (pwrSwOnOff) => {
   let addr = motorAddr.Y;
   let cmdBuf;
-  try {
+  try { 
+    let tgtPos = 30000;
     if (pwrSwOnOff) {
       console.log('send settings');
       cmdBuf = setCmdWords(opcode.settings, [
+         4000, // max speed
+        32000, // max pos is 800 mm
+         1200, // start/stop speed limit (30 mm/sec)
 
-         4000, // max speed is 100 mm
-
-        16000, // max pos is 400 mm
-         1200, // atart/stop speed limit (30 mm/sec)
-
-        40000, // acceleration rate steps/sec/sec  (1000 mm/sec/sec)
+            1, // use acceleration
+               // accel values: 4000, 8000, 16000, 24000, 32000, 40000, 50000, 60000
+            0, // acceleration code 0: 100 mm/sec/sec, 7: 1500 mm/sec/sec
 
          4000, // homing speed (100 mm/sec)
            60, // homing back-up ms->speed (1.5 mm/sec)
@@ -134,8 +135,8 @@ exports.test = async (pwrSwOnOff) => {
       cmdBuf = setOpcode(opcode.setHomePos);
       await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
       
-      console.log('send move to 300 mm'); 
-      cmdBuf = setCmdWord(opcode.move + 12000);
+      console.log('send move to tgtPos'); 
+      cmdBuf = setCmdWord(opcode.move + tgtPos);
       await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf)); // move to 200 mm
     }
     while (pwr.isPwrSwOn()) {
@@ -156,7 +157,7 @@ errString = (code) => {
     case 2: return "i2c overflow";
     case 3: return "bad command data (first byte invalid or length wrong)";
     case 4: return "command processing took too long";
-    case 5: return "stepping took too long (too fast)";
+    case 5: return "speed too fast for MCU";
     case 6: return "move out-of-bounds";
     case 7: return "move cmd when not homed";
   }
