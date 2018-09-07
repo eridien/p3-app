@@ -142,6 +142,7 @@ exports.test = async (pwrSwOnOff) => {
   ];
   try { 
     if (pwrSwOnOff) {
+      let numSettingsToSend = 9;
       console.log(getTime(), '============ send settings ============');
       cmdBuf = setCmdWords(opcode.settings, [
                // accel speeds (mm/sec/sec): 0, 200, 400, 600, 800, 1000, 1250, 1500
@@ -152,13 +153,12 @@ exports.test = async (pwrSwOnOff) => {
         32767, // max pos is 800 mm
 
          1000, // homing speed (100 mm/sec)
-            7, // homing deceleration code
-           60, // homing back-up ms->speed (1.5 mm/sec)
+           60, // homing back-up speed (1.5 mm/sec)
            40, // home offset distance: 1 mm
             0, // home pos value, set cur pos to this after homing
             0, // limit sw control
       ]);
-      await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
+      await i2cWriteP(addr, numSettingsToSend*2+1, Buffer.from(cmdBuf));
       
       console.log(getTime(), '============ send home-set ============');
       cmdBuf = setOpcode(opcode.setHomePos);
@@ -252,7 +252,6 @@ errString = (code) => {
 //      no-acceleration speed limit (and start speed when stopped)
 //      max pos     (min pos is always zero))
 //      homing speed
-//      homing decelleration rate table index 0..7 
 //      homing back-up speed
 //      home offset distance
 //      home pos value (set cur pos to this value after homing, usually 0)
