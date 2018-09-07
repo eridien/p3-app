@@ -18,10 +18,12 @@ i2cWriteP = pify(globalBus.i2cWrite);
 let stateByte;
 let lastStateByte = -1;
 let lastPos = 0;
+let lastPosReported = 0;
 let lastErrBit = -1;
 let start = Date.now();
 let lastTime = start;
 let lastSpeed = 0;
+let lastAccel = 0;
 
 let chkState = async (addr) => {
   let parseState = (buf) => {
@@ -32,10 +34,13 @@ let chkState = async (addr) => {
     }
     let now = Date.now();
     let elapsedSecs = (now - lastTime)/1000;
-    lastTime = now;
     let speed = Math.round((  pos - lastPos  ) / elapsedSecs);
     let accel = Math.round((speed - lastSpeed) / elapsedSecs);
+    let avgAccel = Math.round((lastAccel + accel) / 2);
+    lastTime = now;
+    lastPos   = pos;
     lastSpeed = speed;
+    lastAccel = accel;
     return {
       time: ((now - start)/1000).toFixed(2),
       // vers: (stateByte >> 7),
@@ -46,7 +51,7 @@ let chkState = async (addr) => {
       homed: stateByte & 1,
       pos,
       speed,
-      accel,
+      avgAccel,
     };
   }
   try {
@@ -57,14 +62,14 @@ let chkState = async (addr) => {
       throw (new Error('cksum error'));
     }
     let state = parseState(recvBuf);
-    if (lastStateByte != stateByte ||
-        lastPos       != state.pos || 
-        lastErrBit    != state.errBit) {
+    if (lastStateByte   != stateByte ||
+        lastPosReported != state.pos || 
+        lastErrBit      != state.errBit) {
       console.log(state);
       console.log();
-      lastStateByte = stateByte;
-      lastPos       = state.pos;
-      lastErrBit    = state.errBit;
+      lastStateByte   = stateByte;
+      lastPosReported = state.pos;
+      lastErrBit      = state.errBit;
     }
   } catch (e) {
     console.log('i2c status read error:', e.message);
@@ -125,15 +130,15 @@ exports.test = async (pwrSwOnOff) => {
   let addr = motorAddr.Y;
   let cmdBuf;
   try { 
-    let tgtPos = 12000;
+    let tgtPos = 30000;
     if (pwrSwOnOff) {
       console.log('send settings');
       cmdBuf = setCmdWords(opcode.settings, [
-         4000, // max speed
+         8000, // max speed
         32000, // max pos is 800 mm
          1200, // start/stop speed limit (30 mm/sec)
                // accel values: 0, 8000, 16000, 24000, 32000, 40000, 50000, 60000
-            5, // acceleration code 0: 100 mm/sec/sec, 7: 1500 mm/sec/sec
+            7, // acceleration code 0: 100 mm/sec/sec, 7: 1500 mm/sec/sec
 
          4000, // homing speed (100 mm/sec)
            60, // homing back-up ms->speed (1.5 mm/sec)
