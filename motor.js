@@ -65,8 +65,8 @@ let chkState = async () => {
     }
     let state = parseState(recvBuf);
     if (lastStateByte != stateByte ||
-      lastPosReported != state.pos ||
-      lastErrBit != state.errBit) {
+        lastPosReported != state.pos ||
+        lastErrBit != state.errBit) {
       console.log(state);
       console.log();
       lastStateByte = stateByte;
@@ -117,8 +117,7 @@ let opcode = {
   settings: 0x1f,
 };
 
-// this might collide with main loop i2c
-setInterval(chkState, 1000 / 6);
+setInterval(chkState, 20);
 
 let path;
 

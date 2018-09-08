@@ -12,7 +12,10 @@ let queue = [];
 let qBusy = false;
 
 const chkQueue = () => {
-  if (qBusy) return;
+  if (qBusy) {
+    return;
+  }
+  if(queue.length > 1) console.log(queue);
   qBusy = true;
   const doOne = () => {
     let req;
@@ -24,14 +27,15 @@ const chkQueue = () => {
     if(req.write) {
       bus.i2cWrite(addr, req.buf.byteLength, Buffer.from(req.buf),
         err => {
-          if(err) reject(err); else resolve();
+          if(err) {reject(err)} else resolve();
           doOne();
         });
     }
     else {
       let buf = new Buffer(4);
       bus.i2cRead(addr, 4, buf,
-        err => {if (err) reject(err); else resolve(buf) });
+        err => {if (err) {reject(err)} else resolve(buf) });
+        doOne();
     }
   }
   doOne();
