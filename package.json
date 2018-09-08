@@ -4,7 +4,7 @@
   "description": "webapp server for eridien P3",
   "main": "index.js",
   "dependencies": {
-    "i2c-bus": "github:mark-hahn/i2c-bus",
+    "i2c-bus": "^4.0.1",
     "p-queue": "^2.4.2",
     "pify": "^4.0.0",
     "rpi-gpio": "^1.0.0"
