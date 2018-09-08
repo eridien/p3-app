@@ -5,7 +5,16 @@
 dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=2,i2c_gpio_scl=3,i2c_gpio_delay_us=1
 */
 
-import pwr from './power';
+let util = require('util');
+const i2c = require('./i2c');
+const sleep = util.promisify(setTimeout);
+
+motors = [
+  {name:'Y', i2cAddr: 0x08, descr: 'Y-Axis'},
+];
+
+let motor = {};
+for (let [idx, m] of motors.entries()) { motor[m.name] = Object.assign(m,{idx})};
 
 let stateByte;
 let lastStateByte = -1;
@@ -20,7 +29,7 @@ let lastAccel = 0;
 let getTime = () => ((Date.now() - start) / 1000).toFixed(2);
 
 let chkState = async () => {
-  let addr = 8;
+  let addr = motor.Y.i2cAddr;
   let parseState = (buf) => {
     stateByte = buf[0];
     let pos = ((buf[1] << 8) | buf[2]);
@@ -49,8 +58,7 @@ let chkState = async () => {
     };
   }
   try {
-    let recvBuf = Buffer(4);
-    await i2cReadP(addr, recvBuf.length, recvBuf);
+    let recvBuf = await i2c.recv(addr);
     if (recvBuf[3] != ((recvBuf[0] + recvBuf[1] + recvBuf[2]) & 0xff)) {
       console.log('status read cksum error:', recvBuf);
       throw (new Error('cksum error'));
@@ -94,18 +102,6 @@ let setCmdWords = (opcode, cmdData) => {
   }
   return cmdBuf;
 }
-let motorAddr = {
-  Y: 0x08,
-  x: 0x10,
-  x: 0x11,
-  x: 0x12,
-  x: 0x18,
-  x: 0x19,
-  x: 0x1a,
-  x: 0x1b,
-  x: 0x1c,
-  x: 0x1d,
-}
 
 let opcode = {
   move: 0x8000,
@@ -126,8 +122,9 @@ setInterval(chkState, 1000 / 6);
 
 let path;
 
-exports.test = async (pwrSwOnOff) => {
-  let addr = motorAddr.Y;
+exports.test = async () => {
+  let pwrSwOnOff = true;
+  let addr = motor.Y.i2cAddr;
   let cmdBuf;
   path = [
     [12000, 1000],
@@ -151,25 +148,27 @@ exports.test = async (pwrSwOnOff) => {
         0, // home pos value, set cur pos to this after homing
         0, // limit sw control
       ]);
-      await i2cWriteP(addr, numSettingsToSend * 2 + 1, Buffer.from(cmdBuf));
+      await i2c.send(addr, cmdBuf);
 
       console.log(getTime(), '============ send home-set ============');
       cmdBuf = setOpcode(opcode.setHomePos);
-      await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
+      await i2c.send(addr, cmdBuf);
 
       for (let e of path) {
         let [tgt, delay] = e;
         console.log(getTime(), '============ move to', tgt, '============');
         cmdBuf = setCmdWord(opcode.move + tgt);
-        await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
+        await i2c.send(addr, cmdBuf);
         await sleep(delay);
       }
       console.log(getTime(), '============ reset ============');
       cmdBuf = setOpcode(opcode.reset);
-      await i2cWriteP(addr, cmdBuf.byteLength, Buffer.from(cmdBuf));
+      await i2c.send(addr, cmdBuf);
+
+      while (true) { await sleep(10000) };
     }
   } catch (e) {
-    chkState(addr);
+    chkState();
     console.log('I2C test error:', e.message);
     await sleep(100);
   }

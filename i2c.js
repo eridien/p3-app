@@ -5,7 +5,7 @@
 dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=2,i2c_gpio_scl=3,i2c_gpio_delay_us=1
 */
 
-import * as i2cbus from 'i2c-bus';
+const i2cbus = require('i2c-bus');
 
 let bus   = i2cbus.open(3, () => { });
 let queue = [];
@@ -20,9 +20,9 @@ const chkQueue = () => {
       qBusy = false;
       return;
     }
-    let { motor, resolve, reject } = req;
+    let { addr, resolve, reject } = req;
     if(req.write) {
-      bus.i2cWrite(motors[motor].i2cAddr, req.buf.length, Buffer.from(req.buf),
+      bus.i2cWrite(addr, req.buf.byteLength, Buffer.from(req.buf),
         err => {
           if(err) reject(err); else resolve();
           doOne();
@@ -30,22 +30,22 @@ const chkQueue = () => {
     }
     else {
       let buf = new Buffer(4);
-      bus.i2cRead(motors[motor].i2cAddr, 4, buf,
+      bus.i2cRead(addr, 4, buf,
         err => {if (err) reject(err); else resolve(buf) });
     }
   }
   doOne();
 }
 
-export const send = (motor, buf) => {
+exports.send = (addr, buf) => {
   return new Promise((resolve, reject) => {
-    queue.push({ motor, write:true, buf, resolve, reject });
+    queue.push({ write:true, addr, buf, resolve, reject });
     chkQueue();
   });
 }
-export const recv = (motor) => {
+exports.recv = (addr) => {
   return new Promise((resolve, reject) => {
-    queue.push({ motor, resolve, reject });
+    queue.push({ addr, resolve, reject });
     chkQueue();
   });
 }
