@@ -1,0 +1,86 @@
+//   
+//  eridien P3 mcu motor controller interface
+//  (should match eridien/mcu-motors respository for MCU version)
+//
+//   Each MCU is an I2C slave.  Each motor in the MCU has its own I2C address.
+//   Any I2C write to MCU is a command.  Any read returns 4-byte status.
+// 
+//   -- I2C addresses --
+//   Config for one bipolar motor    (BM,B1) uses 0x08
+//   Config for three bipolar motors (BM,B3) uses 0x10, 0x11, 0x12
+//   Config for six unipolar motors  (U6)    uses 0x18 ... 0x1d
+//
+//   -- one-byte commands --
+//   0001 0000  start homing
+//   0001 0001  next read position is end position of homing (test pos)
+//   0001 0010  soft stop, deccelerates, no reset
+//   0001 0011  soft stop, deccelerates first, then reset
+//   0001 0100  hard stop (immediate reset)
+//   0001 0101  motor on (hold place, reset off)
+//   0001 0110  set curpos to home pos value setting (fake homing)
+//
+//   -- 2-byte move command --
+//   1aaa aaaa     top 7 bits of move addr
+//      aaaa aaaa  bottom 8 bits
+
+//   -- 3-byte speed-move command --
+//   01ss ssss     set speed setting to value s times 256
+//     0aaa aaaa   top 7 bits of move addr,
+//     aaaa aaaa   bottom 8 bits
+//
+//   -- 5-byte accel-speed-move command --  
+//   0000 1ccc    set acceleration idx setting
+//     ssss ssss  top 8 bits of speed,
+//     ssss ssss  bottom 8 bits
+//     0aaa aaaa  top 7 bits of move addr,
+//     aaaa aaaa  bottom 8 bits
+//
+//   -- 3-byte to 19-byte settings command --
+//   write may be short, only setting first entries
+//   0001 1111  load settings, 16-bit values
+//      acceleration rate table index 0..7 (steps/sec/sec), 0 is off
+//      default speed
+//      no-acceleration speed limit (and start speed when stopped)
+//      max pos     (min pos is always zero))
+//      homing speed
+//      homing back-up speed
+//      home offset distance
+//      home pos value (set cur pos to this value after homing, usually 0)
+//      limit switch controls
+//
+//   -- 1 byte limit sw controls --/
+//   in settings above
+//   zero-byte is normal behavior
+//   00sslee
+//      ss  start dir: 0: rev, 1: fwd, 2: limit sw, 3: not limit sw
+//       l  switch pin active voltage, 0: lo,  1: hi
+//      ee  force ending side: 0: no, 1: sw pin active, 2: sw pin not active
+//
+// -- 4-byte status read --
+// this is the only read format on i2c -- always 4 bytes including cksum
+// Error code and error bit are cleared on status read, only on addressed motor
+//   1) vccc eboz  state byte
+//        v: version (1-bit)
+//      ccc: error code (see above) (only set on specific motor causing error)
+//        e: error bit              (set on all motors when any error in mcu)
+//        b: busy state
+//        o: motor on (not in reset)
+//        z: homed
+//   2) aaaa aaaa  current position, top 8 bits (might be result of cmd 0x11)
+//   3) aaaa aaaa  followed by bottom 8 bits
+//   4) cccc cccc  8-bit cksum, sum of first 3 bytes
+//
+// motor position is stored when homing first closes limit switch
+// Command 0x11 tells next status read to return this test position
+// This status read will have a magic state byte value of 0x04
+//
+// Error codes for state byte above 
+//   MOTOR_FAULT_ERROR   0x10  // over-heated or over-current driver chip
+//   I2C_OVERFLOW_ERROR  0x20  // i2c byte received before last taken
+//   CMD_DATA_ERROR      0x30  // command format incorrect
+//   CMD_NOT_DONE_ERROR  0x40  // new command arrived before old cmd finished
+//   STEP_NOT_DONE_ERROR 0x50  // step rate too fast for MCU
+//   BOUNDS_ERROR        0x60  // position < 0 or > max setting when moving
+//   NOT_HOMED_ERROR     0x70  // attempt to do a move when not homed yet
+//
+
