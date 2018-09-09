@@ -58,7 +58,7 @@ let chkState = async () => {
     };
   }
   try {
-    let recvBuf = await i2c.recv(addr);
+    let recvBuf = await i2c.status(addr);
     if (recvBuf[3] != ((recvBuf[0] + recvBuf[1] + recvBuf[2]) & 0xff)) {
       console.log('status read cksum error:', recvBuf);
       throw (new Error('cksum error'));
@@ -69,9 +69,9 @@ let chkState = async () => {
         lastErrBit != state.errBit) {
       console.log(state);
       console.log();
-      lastStateByte = stateByte;
+      lastStateByte   = stateByte;
       lastPosReported = state.pos;
-      lastErrBit = state.errBit;
+      lastErrBit      = state.errBit;
     }
   } catch (e) {
     console.log('i2c status read error:', e.message);
@@ -105,8 +105,8 @@ let setCmdWords = (opcode, cmdData) => {
 
 let opcode = {
   move: 0x8000,
-  speedMove: 0x4000,
-  accelSpeedMove: 0x0800,
+  speedMove: 0x40,
+  accelSpeedMove: 0x08,
   startHoming: 0x10,
   getTestPos: 0x11,
   softStop: 0x12,
@@ -126,8 +126,9 @@ exports.test = async () => {
   let addr = motor.Y.i2cAddr;
   let cmdBuf;
   path = [
-    [12000, 1000],
-    [12000, 1000],
+    // pos, delay, speed, accel
+    [8000, 1000, -1, -1],
+    [6100,  3000, -1, -1],
   ];
   try {
     if (pwrSwOnOff) {
@@ -137,7 +138,7 @@ exports.test = async () => {
         // accel speeds (mm/sec/sec): 0, 200, 400, 600, 800, 1000, 1250, 1500
         // accel values: 0, 8000, 16000, 24000, 32000, 40000, 50000, 60000
         5, // acceleration code
-        4000, // default speed
+        8000, // default speed
         1200, // start/stop speed limit (30 mm/sec)
         32767, // max pos is 800 mm
 
@@ -147,22 +148,35 @@ exports.test = async () => {
         0, // home pos value, set cur pos to this after homing
         0, // limit sw control
       ]);
-      await i2c.send(addr, cmdBuf);
+      await i2c.cmd(addr, cmdBuf);
 
       console.log(getTime(), '============ send home-set ============');
       cmdBuf = setOpcode(opcode.setHomePos);
-      await i2c.send(addr, cmdBuf);
+      await i2c.cmd(addr, cmdBuf);
 
       for (let e of path) {
-        let [tgt, delay] = e;
-        console.log(getTime(), '============ move to', tgt, '============');
-        cmdBuf = setCmdWord(opcode.move + tgt);
-        await i2c.send(addr, cmdBuf);
+        let [tgt, delay, speed, accel] = e;
+        if (speed == -1 && accel == -1) {
+          console.log(getTime(), '============ move to', tgt, '============');
+          cmdBuf = setCmdWord(opcode.move + tgt);
+        }
+        else if (accel == -1) {
+          console.log(getTime(), '============ speed-move to', tgt,
+            'at speed', ((speed >> 8) & 0x3f) * 256, '============');
+          cmdBuf = setCmdWords(opcode.speedMove + ((speed >> 8) & 0x3f), [tgt]);
+        }
+        else {
+          console.log(getTime(), '============ accel-speed-move to', tgt, 
+                              'at speed', ((speed >> 8) & 0x3f)*256, 
+                              'and accel', accel, '============');
+          cmdBuf = setCmdWords(opcode.accelSpeedMove + accel, [speed, tgt]);
+        }
+        await i2c.cmd(addr, cmdBuf);
         await sleep(delay);
       }
-      console.log(getTime(), '============ reset ============');
-      cmdBuf = setOpcode(opcode.reset);
-      await i2c.send(addr, cmdBuf);
+      console.log(getTime(), '============ softStop ============');
+      cmdBuf = setOpcode(opcode.softStopRst);
+      await i2c.cmd(addr, cmdBuf);
 
       while (true) { await sleep(10000) };
     }
