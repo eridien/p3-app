@@ -80,6 +80,7 @@
     home offset distance (final home distance from switch)
     home pos value (set cur pos to this value after homing, usually 0)
     limit switch control
+    mcuClock  // period of clock in usecs  (applies to all motors)
 
   limit sw control byte format for settings command above
   zero-byte is normal behavior
