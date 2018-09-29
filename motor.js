@@ -41,7 +41,7 @@ let lastAccel = [0, 0, 0];
 
 let getTime = () => ((Date.now() - start) / 1000).toFixed(2);
 
-let chkState = async (motIdx) => {
+let chkState = async (motIdx, dontPrint) => {
   let mot = motors[motIdx];
   let addr = mot.i2cAddr;
   let parseState = (buf) => {
@@ -64,9 +64,9 @@ let chkState = async (motIdx) => {
       // vers: (stateByte >> 7),
       e: errString((stateByte & 0x70) >> 4),
       eb: (stateByte & 0x08) >> 3,
-      b: (stateByte & 0x04) >> 2,
+      busy: (stateByte & 0x04) >> 2,
       m: (stateByte & 0x02) >> 1,
-      m: stateByte & 1,
+      h: stateByte & 1,
       pos,
       s:speed,
       // accel,
@@ -84,7 +84,7 @@ let chkState = async (motIdx) => {
         lastStateByte[motIdx]   != stateByte ||
         lastPosReported[motIdx] != state.pos ||
         lastErrBit[motIdx]      != state.errBit) {
-      console.log(util.inspect(state).replace(/\s/g, ''));
+      if (!dontPrint) console.log(util.inspect(state).replace(/\s/g, ''));
       lastStateByte[motIdx]   = stateByte;
       lastPosReported[motIdx] = state.pos;
       lastErrBit[motIdx]      = state.errBit;
@@ -145,10 +145,13 @@ exports.test = async () => {
     // ['R', 30000, -1, -1],
     // ['E', 30000, -1, -1],
     // ['X', 30000, -1, -1],
-    ['A', 30000, -1, -1],
+    // ['A', 30000, -1, -1],
+    ['B', 30000, -1, -1],
   ];
   try {
-    let numSettingsToSend = 9;
+    await chkState(motor.B.idx);
+
+    let numSettingsToSend = 10;
     console.log(getTime(), '============ send settings ============');
     cmdBuf = setCmdWords(opcode.settings, [
       // accel speeds (mm/sec/sec): 0, 200, 400, 600, 800, 1000, 1250, 1500
@@ -164,11 +167,11 @@ exports.test = async () => {
       0,    // limit sw control
       30,   // period of clock in usecs (applies to all motors)
     ]);
-    await i2c.cmd(motor.A.i2cAddr, cmdBuf);
+    await i2c.cmd(motor.B.i2cAddr, cmdBuf);
 
     console.log(getTime(), '============ send home-set ============');
     cmdBuf = setOpcode(opcode.setHomePos);
-    await i2c.cmd(motor.A.i2cAddr, cmdBuf);
+    await i2c.cmd(motor.B.i2cAddr, cmdBuf);
 
     for (let e of testCmds) {
       let [motorName, tgt, speed, accel] = e;
@@ -189,31 +192,32 @@ exports.test = async () => {
       }
       await i2c.cmd(motor[motorName].i2cAddr, cmdBuf);
     }
-    await sleep(3000); // wait for one to get busy
 
     // while ((await chkState(motor.R.idx)).busy ||
     //   (await chkState(motor.E.idx)).busy ||
     //   (await chkState(motor.X.idx)).busy);
 
-    while ((await chkState(motor.A.idx)).busy);
+    while ((await chkState(motor.B.idx, true)).busy);
 
     // console.log(getTime(), '============ softStop ============');
     // cmdBuf = setOpcode(opcode.softStopRst);
     // await i2c.cmd(motor.R.i2cAddr, cmdBuf);
     // await i2c.cmd(motor.E.i2cAddr, cmdBuf);
-    // await i2c.cmd(motor.X.i2cAddr, cmdBuf);
+    // await i2c.cmd(motor.B.i2cAddr, cmdBuf);
 
-    // await chkState(motor.R.idx);
-    // await chkState(motor.E.idx);
-    // await chkState(motor.X.idx);
+    await chkState(motor.B.idx);
 
-    await sleep(10000); // wait for exit
   } catch (e) {
-    await chkState(motor.A.idx);
     console.log('I2C test error:', e.message);
+    await chkState(motor.B.idx);
     await sleep(1000);
   }
 }
+
+
+
+
+
 
 errString = (code) => {
   switch (code) {
