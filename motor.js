@@ -84,7 +84,8 @@ let chkState = async (motIdx, dontPrint) => {
         lastStateByte[motIdx]   != stateByte ||
         lastPosReported[motIdx] != state.pos ||
         lastErrBit[motIdx]      != state.errBit) {
-      if (!dontPrint) console.log(util.inspect(state).replace(/\s/g, ''));
+      if (state.eb || !dontPrint) 
+        console.log(util.inspect(state).replace(/\s/g, ''));
       lastStateByte[motIdx]   = stateByte;
       lastPosReported[motIdx] = state.pos;
       lastErrBit[motIdx]      = state.errBit;
@@ -142,13 +143,14 @@ exports.test = async () => {
   let cmdBuf;
   testCmds = [
     // motor, pos, post-delay, speed, accel (-1 means use settings)
-    // ['R', 30000, -1, -1],
-    // ['E', 30000, -1, -1],
-    // ['X', 30000, -1, -1],
-    // ['A', 30000, -1, -1],
+    // ['R', 30000, -1, -1],  // fault input is broken
+    // ['E', 30000, -1, -1],  // fault input is broken
+    ['X', 30000, -1, -1],
+    // ['A', 30000, -1, -1], // motor A driver is broken
     ['B', 30000, -1, -1],
   ];
   try {
+    await chkState(motor.X.idx);
     await chkState(motor.B.idx);
 
     let numSettingsToSend = 10;
@@ -165,12 +167,15 @@ exports.test = async () => {
       40,   // home offset distance: 1 mm
       0,    // home pos value, set cur pos to this after homing
       0,    // limit sw control
-      30,   // period of clock in usecs (applies to all motors)
+      30,   // period of clock in usecs (applies to all motors in mcu)
+            // lower value reduces stepping jitter, but may cause failure
     ]);
+    await i2c.cmd(motor.X.i2cAddr, cmdBuf);
     await i2c.cmd(motor.B.i2cAddr, cmdBuf);
 
     console.log(getTime(), '============ send home-set ============');
     cmdBuf = setOpcode(opcode.setHomePos);
+    await i2c.cmd(motor.X.i2cAddr, cmdBuf);
     await i2c.cmd(motor.B.i2cAddr, cmdBuf);
 
     for (let e of testCmds) {
@@ -197,18 +202,44 @@ exports.test = async () => {
     //   (await chkState(motor.E.idx)).busy ||
     //   (await chkState(motor.X.idx)).busy);
 
-    while ((await chkState(motor.B.idx, true)).busy);
+    while ((await chkState(motor.X.idx, true)).busy);
 
     // console.log(getTime(), '============ softStop ============');
     // cmdBuf = setOpcode(opcode.softStopRst);
     // await i2c.cmd(motor.R.i2cAddr, cmdBuf);
     // await i2c.cmd(motor.E.i2cAddr, cmdBuf);
-    // await i2c.cmd(motor.B.i2cAddr, cmdBuf);
+    // await i2c.cmd(motor.X.i2cAddr, cmdBuf);
 
+    let status = await chkState(motor.X.idx, true);
+    if (status.eb) {
+      await chkState(motor.R.idx);
+      await chkState(motor.Z.idx);
+      await chkState(motor.X.idx);
+      await chkState(motor.B.idx);
+      await chkState(motor.R.idx);
+      await chkState(motor.Z.idx);
+      await chkState(motor.B.idx);
+      await chkState(motor.X.idx);
+    }
+
+    status = await chkState(motor.B.idx, true);
+    if (status.eb) {
+      await chkState(motor.R.idx);
+      await chkState(motor.Z.idx);
+      await chkState(motor.X.idx);
+      await chkState(motor.B.idx);
+      await chkState(motor.R.idx);
+      await chkState(motor.Z.idx);
+      await chkState(motor.X.idx);
+      await chkState(motor.B.idx);
+    }
+
+    await chkState(motor.X.idx);
     await chkState(motor.B.idx);
 
   } catch (e) {
     console.log('I2C test error:', e.message);
+    await chkState(motor.X.idx);
     await chkState(motor.B.idx);
     await sleep(1000);
   }
