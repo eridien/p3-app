@@ -4,13 +4,31 @@
   (should match eridien/mcu-motors respository for MCU version)
 
   Each MCU is an I2C slave.  Each motor in the MCU has its own I2C address.
-  Each motor state is independent (except for error which stops entire mcu)
+  Each motor state is independent (except for error which stops entire mcu).
+  The LEDS also have their own slave addr.
 
   At the time of this writing the controller code can be built for:
-      One bipolar motor     (define BM and B1) (PIC16F15345)
-      Three bipolar motors  (define BM and B3) (PIC16F15345)
-      Six unipolar motors   (define U6)        (PIC16F15375)
+      One bipolar motor    (define BM and B1) (PIC16F15345)
+      Four bipolar motors  (define BM and B4) (PIC24F16KM202)
+      Five unipolar motors (define U5)        (PIC24F16KM204)
   The PIC models can be different.
+
+  The motors have code letters (name) used in many places
+  // B1
+  { name: 'Y', i2cAddr: 0x08, mcu:B1, descr: 'Y-Axis' },
+  // B4
+  { name: 'R', i2cAddr: 0x10, mcu:B4, descr: 'Rotation' },
+  { name: 'E', i2cAddr: 0x11, mcu:B4, descr: 'Extruder' },
+  { name: 'X', i2cAddr: 0x12, mcu:B4, descr: 'X-Axis'   },
+  { name: 'Z', i2cAddr: 0x13, mcu:B4, descr: 'Z-Axis'   }, 
+  // U5
+  { name: 'A', i2cAddr: 0x18, mcu:U5, descr: 'Tool-A' },
+  { name: 'B', i2cAddr: 0x19, mcu:U5, descr: 'Tool-B' },
+  { name: 'C', i2cAddr: 0x1a, mcu:U5, descr: 'Tool-C' },
+  { name: 'P', i2cAddr: 0x1b, mcu:U5, descr: 'Paste'  },
+  { name: 'F', i2cAddr: 0x1c, mcu:U5, descr: 'Focus'  },
+  // not really a motor
+  { name: 'L', i2cAddr: 0x1d, mcu:U5, descr: 'Leds' },
 
   The MCU controller has a specific meaning for a step.
   For bipolar it is a 1/8 micro-step and for unipolar it is one of four phases.
@@ -32,14 +50,9 @@
   acceleration is 0..7: none, 8000, 16000, 24000, 32000, 40000, 50000, 60000
   for 1/40 mm steps: none, 200, 400, 600, 800, 1000, 1250, 1500 mm/sec/sec
   
-  -- I2C addresses --
-  Config for one bipolar motor    (BM,B1) uses 0x08
-  Config for three bipolar motors (BM,B3) uses 0x10, 0x11, 0x12
-  Config for six unipolar motors  (U6)    uses 0x18 ... 0x1d
-
   Any I2C write to MCU is a command.  Any read returns a 4-byte status.
   all commands are started immediately even when motor is busy (moving, homing, etc.)
-  it is responsibility of the host to check for finished by polling busy-bit in state
+  if needed, the host can check for finished by polling busy-bit in state
   no commands are buffered like G-Code commands
   commands can be linked to async operations such as clicking on a webpage
   changing settings when motor is busy may cause unpredictable results
@@ -56,6 +69,7 @@
   -- 2-byte move command --
   1aaa aaaa     top 7 bits of move addr
     aaaa aaaa  bottom 8 bit
+
   -- 3-byte speed-move command --
   01ss ssss     set speed setting to value s times 256
     0aaa aaaa   top 7 bits of move addr,
@@ -68,7 +82,7 @@
     0aaa aaaa  top 7 bits of move addr,
     aaaa aaaa  bottom 8 bits
 
-  -- 3-byte to 19-byte settings command --
+  -- 3-byte to 21-byte settings command --
   write may be short, only setting first entries
   0001 1111  load settings, all are two-byte, big-endian, 16-bit values
     acceleration rate table index 0..7, 0 is off
@@ -80,7 +94,7 @@
     home offset distance (final home distance from switch)
     home pos value (set cur pos to this value after homing, usually 0)
     limit switch control
-    mcuClock  // period of clock in usecs  (applies to all motors)
+    mcuClock;   // period of clock in usecs  (applies to all motors)
 
   limit sw control byte format for settings command above
   zero-byte is normal behavior
@@ -94,13 +108,16 @@
   force-ending-side values 1 and 2 set ending position
   ends on specified side of switch no matter what side it started on
 
+  -- 1-byte LED command (only command to specific LED I2C addr)
+  aabb ccdd  each pair are 0-3 brightness for an LED (on/off only for now)
+
   -- 4-byte status read --
   this is the only read format on i2c -- always 4 bytes including cksum
   Error code and error bit are cleared on status read, only on addressed motor
     1) vccc eboh  state byte
         v: version (1-bit)
       ccc: error code (see below) (code only set on motor causing error)
-        e: error bit              (bit set on all motors on every error)
+        e: error bit              (bit set on all motors in mcu on every error)
         b: busy     (homing, moving, or stopping)
         o: motor on (not in reset)
         h: homed    (motor has been homed since last reset)
@@ -123,4 +140,4 @@
   This status read will have a magic state value of 0x04 (normally impossible)
 
   position values in commands must be positive, top bit is zero
-  position returned in status is signed and may be negative (e.g. when homing
+  position returned in status is signed and may be negative (e.g. when homing)

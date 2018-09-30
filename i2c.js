@@ -1,9 +1,7 @@
-
 /*
-on raspberry pi ...
-  /boot/overlays/README
-  /boot/config.txt
-    dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=2,i2c_gpio_scl=3,i2c_gpio_delay_us=1
+/boot/config.txt
+/boot/overlays/README
+dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=2,i2c_gpio_scl=3,i2c_gpio_delay_us=1
 */
 
 let I2CBUS = 3;
