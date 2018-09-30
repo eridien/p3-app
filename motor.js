@@ -1,20 +1,8 @@
 
 
-let util = require('util');
-const i2c = require('./i2c');
+const util = require('util');
+const i2c  = require('./i2c');
 
-const errString = (code) => {
-  switch (code) {
-    case 0: return "";
-    case 1: return "motor fault";
-    case 2: return "i2c overflow";
-    case 3: return "bad command data";
-    case 4: return "command processing took too long";
-    case 5: return "speed too fast for MCU";
-    case 6: return "move out-of-bounds";
-    case 7: return "move cmd when not homed";
-  }
-}
 const motors = [
   // B1
   { name: 'Y', i2cAddr: 0x08, mcu:1, descr: 'Y-Axis' },
@@ -33,33 +21,132 @@ const motors = [
   { name: 'L', i2cAddr: 0x1d, mcu:3, descr: 'Leds' },
 ];
 
-let defaultSettings = {
-  // accel speeds (mm/sec/sec): 0, 200, 400, 600, 800, 1000, 1250, 1500
-  // accel values: 0, 8000, 16000, 24000, 32000, 40000, 50000, 60000
-  accel:             7, // acceleration code
-  speed:          2000, // default speed
-  inSpeed:         500, // start/stop speed limit (30 mm/sec)
-  maxPos:        32000, // max pos is 800 mm
-  homeSpeed:      1000, // homing speed (100 mm/sec)
-  homeBkupSpeed:    60, // homing back-up speed (1.5 mm/sec)
-  homeOfs:          40, // home offset distance: 1 mm
-  homePosVal:        0, // home pos value, set cur pos to this after homing
-  limitSw:           0, // limit sw control
-  clkPeriod:        30, // period of clock in usecs (applies to all motors in mcu)
-                     // lower value reduces stepping jitter, but may cause failure
-};
+const defSettings = [
+  // accel values by 0..7 index: 0, 8000, 16000, 24000, 32000, 40000, 50000, 60000
+  // accel in mm/sec/sec:        0,  200,   400,   600,   800,  1000,  1250,  1500
+  [accel,             7], // acceleration code -- max
+  [speed,          2000], // default speed, 50 mm/sec
+  [pullInSpeed,     500], // start/stop pull-in speed -- 12.5 mm/sec
+  [maxPos,        32000], // max pos is 800 mm
+  [homeSpeed,      1000], // homing speed (25 mm/sec)
+  [homeBkupSpeed,    60], // homing back-up speed (1.5 mm/sec)
+  [homeOfs,          40], // home offset distance, 1 mm
+  [homePosVal,        0], // home pos value, set pos to this after homing
+  [limitSw,           0], // limit switch control
+  [clkPeriod,        30], // period of clock in usecs (applies to all motors in mcu)
+                          // lower value reduces stepping jitter, but may cause errors
+];
 
-let motorByName = {};
-for (let [idx, motor] of motors.entries()) {
+const settingsKeys = [];
+defSettings.forEach( (keyVal) => {
+  settingsKeys.push(keyVal[0]);
+});
+
+const motorByName = {};
+motors.forEach( (motor, idx) => {
   motor.idx       = idx;
-  motor.settings  = {...defaultSettings};
+  motor.settings  = {};
+  defSettings.forEach( (keyVal) => {
+    motor.settings[keyVal[0]] = keyVal[1];
+  });
   motorByName[motor.name] = motor;
+});
+
+const motorByNameOrIdx = (nameOrIdx) =>
+  (typeof nameOrIdx == 'string') ? motorByName[nameOrIdx] : motors[nameOrIdx];
+
+const sendSettings = async(nameOrIdx, settings) => {
+  const motor = motorByNameOrIdx(nameOrIdx);
+  const cmdBuf = new ArrayBuffer(1 + settingsKeys.length * 2);
+  const opcodeView = new DataView(cmdBuf, 0);
+  opcodeView.setUint8(0, opcode.settings);
+  const wordsView = new DataView(cmdBuf, 1);
+  let maxIdx = Math.max();
+  settingsKeys.forEach((key, idx) => {
+    if (key in settings) {
+      maxIdx = Math.max(maxIdx, idx);
+      const val = settings[key];
+      wordsView.setUint16(idx*2, val);
+      motor.settings[key] = val;
+    }
+  });
+  if(maxIdx < 0) throw new Error('no setting specified in motor.sendSettings');
+  settingsKeys.forEach((key, idx) => {
+    if(idx == maxIdx) break;
+    if (!(key in settings)) {
+      wordsView.setUint16(idx*2, motor.settings[key]);
+    };
+  });
+  return i2c.cmd(motor.i2cAddr, cmdBuf, 1 + (maxIdx+1)*2);
+}
+
+const opcode = {
+  move:         0x8000,
+  speedMove:      0x40,
+  accelSpeedMove: 0x08,
+  startHoming:    0x10,
+  getTestPos:     0x11,
+  softStop:       0x12,
+  softStopRst:    0x13,
+  reset:          0x14,
+  motorOn:        0x15,
+  setHomePos:     0x16,
+  settings:       0x1f,
 };
 
-const chkState = async (name) => {
-  const motor = motorByName[name];
-  const addr = motor.i2cAddr;
-  const recvBuf = await i2c.status(addr);
+const sendOneByteCmd = async(nameOrIdx, cmdByte) => {
+  const motor = motorByNameOrIdx(nameOrIdx);
+  return i2c.cmd(motor.i2cAddr, Buffer.from([cmdByte]));
+};
+
+const startHoming = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x10) };
+const stop        = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x12) };
+const stopThenRst = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x13) };
+const reset       = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x14) };
+const motorOn     = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x15) };
+const fakeHome    = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x16) };
+
+const move = async (nameOrIdx, pos, speed, accel) => {
+  const motor = motorByNameOrIdx(nameOrIdx);
+  const cmdBuf = new ArrayBuffer(5);       
+  if(!speed && !accel) {              
+    const opcodeView = new Uint16Array(cmdBuf);
+    opcodeView[0] = opcode.move + pos;
+    return i2c.cmd(motor.i2cAddr, cmdBuf, 2);
+  }
+  if(!accel) { 
+    const opcodeView = new Uint8Array(cmdBuf);
+    opcodeView[0] = opcode.speedMove + ((speed >> 8) & 0x3f);
+    const posView = new DataView(cmdBuf,1);
+    posView.setUint16(1, pos);
+    return i2c.cmd(motor.i2cAddr, cmdBuf, 3);
+  }
+  else {              
+    const opcodeView = new Uint8Array(cmdBuf);
+    opcodeView[0] = opcode.accelSpeedMove + accel;
+    const speedPosView = new DataView(cmdBuf,1);
+    speedPosView.setUint16(0, speed);
+    speedPosView.setUint16(2, pos);
+    return i2c.cmd(motor.i2cAddr, cmdBuf, 5);
+  }
+}
+
+const errString = (code) => {
+  switch (code) {
+    case 0: return "";
+    case 1: return "motor fault";
+    case 2: return "i2c overflow";
+    case 3: return "bad command data";
+    case 4: return "command processing took too long";
+    case 5: return "speed too fast for MCU";
+    case 6: return "move out-of-bounds";
+    case 7: return "move cmd when not homed";
+  }
+}
+
+const getStatus = async (nameOrIdx) => {
+  const motor = motorByNameOrIdx(nameOrIdx);
+  const recvBuf = await i2c.status(motor.i2cAddr);
   if (recvBuf[3] != ((recvBuf[0] + recvBuf[1] + recvBuf[2]) & 0xff)) {
     throw (new Error('status checksum error'));
   }
@@ -68,140 +155,70 @@ const chkState = async (name) => {
   if (pos > 32767) {
     pos -= 65536;
   }
+
+// check for error, find error motor and string, clear errors, throw   TODO
+
+
   return {
-    name:motor.name,
-    vers: (stateByte >> 7),
-    errStr: errString((stateByte & 0x70) >> 4),
+    name:     motor.name,
+    vers:    (stateByte >> 7),
+    errStr:   errString((stateByte & 0x70) >> 4),
     errFlag: (stateByte & 0x08) >> 3,
-    busy: (stateByte & 0x04) >> 2,
+    busy:    (stateByte & 0x04) >> 2,
     motorOn: (stateByte & 0x02) >> 1,
-    homed: stateByte & 1,
+    homed:    stateByte & 1,
     pos,
   };
 }
 
-let setOneByteCmd = (opcode) => {
-  const cmdBuf = new ArrayBuffer(1);
-  const opcodeView = new DataView(cmdBuf, 0, 1);
-  opcodeView.setUint8(0, opcode);
-  return cmdBuf;
+const getTestPos  = async (nameOrIdx) => {
+  const motor = motorByNameOrIdx(nameOrIdx);
+  // make sure these are adjacent in I2C queue
+  // request test pos one-byte-cmd is 0x11
+  const promise1 = i2c.cmd(motor.i2cAddr, Buffer.from([0x11]));
+  const promise2 = i2c.status(motor.i2cAddr);
+  await promise1;
+  const recvBuf = await promise2;
+  if(recvBuf[0] != 0x04) 
+    throw new Error('invalid state byte in getTestPos: ' + util.inspect(recvBuf));
+  let pos = ((recvBuf[1] << 8) | recvBuf[2]);
+  if (pos > 32767) pos -= 65536;
+  return pos;
 }
 
-let setCmdWord = (word) => {
-  const cmdBuf = new ArrayBuffer(2);
-  const wordView = new DataView(cmdBuf, 0, 2);
-  wordView.setUint16(0, word);
-  return cmdBuf;
-}
-
-let setCmdWords = (opcode, cmdData) => {
-  const cmdBuf = new ArrayBuffer(1 + cmdData.length * 2);
-  const opcodeView = new DataView(cmdBuf, 0, 1);
-  opcodeView.setUint8(0, opcode);
-  const wordsView = new DataView(cmdBuf, 1, cmdData.length * 2);
-  for (const [ofs, word] of cmdData.entries()) {
-    wordsView.setUint16(ofs * 2, word);
+const notBusy = async (nameOrIdxArr) => {
+  if(!nameOrIdxArr.isArray()) {
+    nameOrIdxArr = [nameOrIdxArr];
+  };
+  wait: while(true) {
+    const promiseArr = [];
+    nameOrIdxArr.forEach( (nameOrIdx) => {
+      promiseArr.push(getStatus(nameOrIdx));
+    });
+    (await Promise.all(promiseArr)).forEach( (status) => { 
+      if(status.busy) continue wait;
+    });
+    return;
   }
-  return cmdBuf;
 }
 
-const opcode = {
-  move: 0x8000,
-  speedMove: 0x40,
-  accelSpeedMove: 0x08,
-  startHoming: 0x10,
-  getTestPos: 0x11,
-  softStop: 0x12,
-  softStopRst: 0x13,
-  reset: 0x14,
-  motorOn: 0x15,
-  setHomePos: 0x16,
-  settings: 0x1f,
+// this also clears all errors in mcu
+const findErrMotor = async (mcu) => {
+  const promiseArr = [];
+  motors.forEach( (motor, idx) => {
+    if(motor.mcu === mcu) {
+      promiseArr.push(getStatus(idx));
+    }
+  });
+  (await Promise.all(promiseArr)).forEach( (status) => { 
+    if(status.errStr) return status;
+  });
+  return false;
+}
+
+module.exports = {
+  motors, motorByName, 
+  defSettings, settingsKeys, sendSettings, 
+  startHoming, fakeHome, move, stop, stopThenRst, reset, motorOn,
+  getStatus, getTestPos, notBusy, findErrMotor, 
 };
-
-  try {
-    let numSettingsToSend = 10;
-    console.log(getTime(), '============ send settings ============');
-    cmdBuf = setCmdWords(opcode.settings, [
-    ]);
-    await i2c.cmd(motorByName.X.i2cAddr, cmdBuf);
-    await i2c.cmd(motorByName.B.i2cAddr, cmdBuf);
-
-    console.log(getTime(), '============ send home-set ============');
-    cmdBuf = setOneByteCmd(opcode.setHomePos);
-    await i2c.cmd(motorByName.X.i2cAddr, cmdBuf);
-    await i2c.cmd(motorByName.B.i2cAddr, cmdBuf);
-
-    for (let e of testCmds) {
-      let [motorName, tgt, speed, accel] = e;
-      if (speed == -1 && accel == -1) {
-        console.log(getTime(), '============ move to', tgt, '============');
-        cmdBuf = setCmdWord(opcode.move + tgt);
-      }
-      else if (accel == -1) {
-        console.log(getTime(), '============ speed-move to', tgt,
-                               'at speed', ((speed >> 8) & 0x3f) * 256, '============');
-        cmdBuf = setCmdWords(opcode.speedMove + ((speed >> 8) & 0x3f), [tgt]);
-      }
-      else {
-        console.log(getTime(), '============ accel-speed-move to', tgt, 
-                               'at speed', ((speed >> 8) & 0x3f)*256, 
-                               'and accel', accel, '============');
-        cmdBuf = setCmdWords(opcode.accelSpeedMove + accel, [speed, tgt]);
-      }
-      await i2c.cmd(motorByName[motorName].i2cAddr, cmdBuf);
-    }
-
-    // while ((await chkState(motor.R.idx)).busy ||
-    //   (await chkState(motor.E.idx)).busy ||
-    //   (await chkState(motor.X.idx)).busy);
-
-    while ((await chkState(motorByName.X.idx, true)).busy);
-
-    // console.log(getTime(), '============ softStop ============');
-    // cmdBuf = setOpcode(opcode.softStopRst);
-    // await i2c.cmd(motor.R.i2cAddr, cmdBuf);
-    // await i2c.cmd(motor.E.i2cAddr, cmdBuf);
-    // await i2c.cmd(motor.X.i2cAddr, cmdBuf);
-
-    let status = await chkState(motorByName.X.idx, true);
-    if (status.eb) {
-      await chkState(motorByName.R.idx);
-      await chkState(motorByName.Z.idx);
-      await chkState(motorByName.X.idx);
-      await chkState(motorByName.B.idx);
-      await chkState(motorByName.R.idx);
-      await chkState(motorByName.Z.idx);
-      await chkState(motorByName.B.idx);
-      await chkState(motorByName.X.idx);
-    }
-
-    status = await chkState(motorByName.B.idx, true);
-    if (status.eb) {
-      await chkState(motorByName.R.idx);
-      await chkState(motorByName.Z.idx);
-      await chkState(motorByName.X.idx);
-      await chkState(motorByName.B.idx);
-      await chkState(motorByName.R.idx);
-      await chkState(motorByName.Z.idx);
-      await chkState(motorByName.X.idx);
-      await chkState(motorByName.B.idx);
-    }
-
-    await chkState(motorByName.X.idx);
-    await chkState(motorByName.B.idx);
-
-  } catch (e) {
-    console.log('I2C test error:', e.message);
-    await chkState(motorByName.X.idx);
-    await chkState(motorByName.B.idx);
-    await sleep(1000);
-  }
-}
-
-
-
-
-
-
-}

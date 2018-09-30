@@ -4,12 +4,12 @@
 dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=2,i2c_gpio_scl=3,i2c_gpio_delay_us=1
 */
 
-let I2CBUS = 3;
+const I2CBUS = 3;
 
 const i2cbus = require('i2c-bus');
 const bus = i2cbus.open(I2CBUS, () => {});
 
-let queue = [];
+const queue = [];
 let qBusy = false;
 
 const chkQueue = () => {
@@ -20,7 +20,7 @@ const chkQueue = () => {
     if(req = queue.shift()) {
       const { addr, resolve, reject } = req;
       if(req.write) {
-        bus.i2cWrite(addr, req.buf.byteLength, Buffer.from(req.buf),
+        bus.i2cWrite(addr, req.len, req.buf,
           err => {
             if(err) {reject(err)} else resolve();
             doOne();
@@ -40,9 +40,10 @@ const chkQueue = () => {
   doOne();
 }
 
-exports.cmd = (addr, buf) => {
+exports.cmd = (addr, buf, len) => {
+  if(!len) len = buf.byteLength;
   return new Promise((resolve, reject) => {
-    queue.push({ write:true, addr, buf, resolve, reject });
+    queue.push({ write:true, addr, buf, len, resolve, reject });
     chkQueue();
   });
 }
