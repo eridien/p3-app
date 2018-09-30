@@ -17,8 +17,6 @@ const motors = [
   { name: 'C', i2cAddr: 0x1a, mcu:3, descr: 'Tool-C' },
   { name: 'P', i2cAddr: 0x1b, mcu:3, descr: 'Paste' },
   { name: 'F', i2cAddr: 0x1c, mcu:3, descr: 'Focus' },
-  // not really a motor
-  { name: 'L', i2cAddr: 0x1d, mcu:3, descr: 'Leds' },
 ];
 
 const defSettings = [
@@ -106,6 +104,10 @@ const reset       = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x14
 const motorOn     = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x15) };
 const fakeHome    = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x16) };
 
+const setLeds = async (led1, led2, led3, led4) => {
+  return sendOneByteCmd(0x1d, led1 << 6 | led2 << 4 | led3 << 2 | led4)
+}
+
 const move = async (nameOrIdx, pos, speed, accel) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   const cmdBuf = new ArrayBuffer(5);       
@@ -144,31 +146,75 @@ const errString = (code) => {
   }
 }
 
-const getStatus = async (nameOrIdx) => {
-  const motor = motorByNameOrIdx(nameOrIdx);
-  const recvBuf = await i2c.status(motor.i2cAddr);
-  if (recvBuf[3] != ((recvBuf[0] + recvBuf[1] + recvBuf[2]) & 0xff)) {
-    throw (new Error('status checksum error'));
-  }
+const parseStatus = (motor, buf) => {
   const stateByte = buf[0];
   let pos = ((buf[1] << 8) | buf[2]);
   if (pos > 32767) {
     pos -= 65536;
   }
-
-// check for error, find error motor and string, clear errors, throw   TODO
-
-
   return {
-    name:     motor.name,
-    vers:    (stateByte >> 7),
-    errStr:   errString((stateByte & 0x70) >> 4),
-    errFlag: (stateByte & 0x08) >> 3,
-    busy:    (stateByte & 0x04) >> 2,
-    motorOn: (stateByte & 0x02) >> 1,
-    homed:    stateByte & 1,
+    name:        motor.name,
+    version:     stateByte >> 7,
+    busy:    !!((stateByte & 0x04) >> 2),
+    motorOn: !!((stateByte & 0x02) >> 1),
+    homed:   !! (stateByte & 1),
     pos,
   };
+}
+
+// find status from motor that reported error
+// also clears all errors in mcu
+const findErrMotor = async (mcu) => {
+  const motorsInMcu = [];
+  const promiseArr = [];
+  motors.forEach( (motor, idx) => {
+    if(motor.mcu === mcu) {
+      motorsInMcu.push(motor);
+      promiseArr.push(i2c.status(motor.i2cAddr));
+    }
+  });
+  (await Promise.all(promiseArr)).forEach( (recvBuf, idx) => { 
+    if(recvBuf[0] & 0x70) return {recvBuf, motor: motorsInMcu[idx]};
+  });
+  return {};
+}
+
+const getStatus = async (nameOrIdx) => {
+  const motor = motorByNameOrIdx(nameOrIdx);
+  const recvBuf = await i2c.status(motor.i2cAddr);
+  if (recvBuf[3] != ((recvBuf[0] + recvBuf[1] + recvBuf[2]) & 0xff)) {
+    throw new Error('status checksum error');
+  }
+  if(recvBuf[0] & 0x08) {
+    // some motor had an error
+    let errBuf   = recvBuf;
+    let errCode  = recvBuf[0] & 0x70;
+    let errMotor = motor;
+    const {buf, mot} = await findErrMotor(motor.mcu);
+    if(buf) {
+      errBuf   = buf;
+      errCode  = buf[0] & 0x70;
+      errMotor =  mot;
+    }
+    // reset all motors in all mcus
+    i2c.clrQueue();
+    const promiseArr = [];
+    for(let idx = 0; idx < motors.length; idx++) promiseArr.push(reset(idx));
+    await Promise.all(promiseArr);
+    const err = new Error();
+    err.motor = errMotor;
+    if(errCode) {
+      err.message = 
+          `${errMotor.descr} motor error: ${errString((errBuf[0] & 0x70) >> 4)}`;
+      err.motorStatus = parseStatus(errMotor, errBuf);
+    }
+    else {
+      err.message = `Unknown motor error in mcu ${errMotor.mcu}.`;
+      err.motorStatus  = parseStatus(motor, recvBuf);
+    }
+    throw err;
+  }
+  return parseStatus(motor, recvBuf);
 }
 
 const getTestPos  = async (nameOrIdx) => {
@@ -202,23 +248,9 @@ const notBusy = async (nameOrIdxArr) => {
   }
 }
 
-// this also clears all errors in mcu
-const findErrMotor = async (mcu) => {
-  const promiseArr = [];
-  motors.forEach( (motor, idx) => {
-    if(motor.mcu === mcu) {
-      promiseArr.push(getStatus(idx));
-    }
-  });
-  (await Promise.all(promiseArr)).forEach( (status) => { 
-    if(status.errStr) return status;
-  });
-  return false;
-}
-
 module.exports = {
   motors, motorByName, 
   defSettings, settingsKeys, sendSettings, 
-  startHoming, fakeHome, move, stop, stopThenRst, reset, motorOn,
-  getStatus, getTestPos, notBusy, findErrMotor, 
+  startHoming, fakeHome, move, stop, stopThenRst, reset, motorOn, setLeds,
+  getStatus, getTestPos, notBusy,
 };

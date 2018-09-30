@@ -40,6 +40,9 @@ const chkQueue = () => {
   doOne();
 }
 
+exports.clrQueue = () => {
+  while(queue.pop());
+}
 exports.cmd = (addr, buf, len) => {
   if(!len) len = buf.byteLength;
   return new Promise((resolve, reject) => {
