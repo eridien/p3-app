@@ -133,7 +133,6 @@ const move = async (nameOrIdx, pos, speed, accel) => {
   }
 }
 
-
 const errString = (code) => {
   switch (code) {
     case 0: return "";
