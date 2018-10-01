@@ -22,16 +22,16 @@ const motors = [
 const defSettings = [
   // accel values by 0..7 index: 0, 8000, 16000, 24000, 32000, 40000, 50000, 60000
   // accel in mm/sec/sec:        0,  200,   400,   600,   800,  1000,  1250,  1500
-  [accel,             7], // acceleration code -- max
-  [speed,          2000], // default speed, 50 mm/sec
-  [pullInSpeed,     500], // start/stop pull-in speed -- 12.5 mm/sec
-  [maxPos,        32000], // max pos is 800 mm
-  [homeSpeed,      1000], // homing speed (25 mm/sec)
-  [homeBkupSpeed,    60], // homing back-up speed (1.5 mm/sec)
-  [homeOfs,          40], // home offset distance, 1 mm
-  [homePosVal,        0], // home pos value, set pos to this after homing
-  [limitSw,           0], // limit switch control
-  [clkPeriod,        30], // period of clock in usecs (applies to all motors in mcu)
+  ['accel',             7], // acceleration code -- max
+  ['speed',          2000], // default speed\', 50 mm/sec
+  ['pullInSpeed',     500], // start/stop pull-in speed -- 12.5 mm/sec
+  ['maxPos',        32000], // max pos is 800 mm
+  ['homeSpeed',      1000], // homing speed (25 mm/sec)
+  ['homeBkupSpeed',    60], // homing back-up speed (1.5 mm/sec)
+  ['homeOfs',          40], // home offset distance, 1 mm
+  ['homePosVal',        0], // home pos value, set pos to this after homing
+  ['limitSw',           0], // limit switch control
+  ['clkPeriod',        30], // period of clock in usecs (applies to all motors in mcu)
                           // lower value reduces stepping jitter, but may cause errors
 ];
 
@@ -49,6 +49,20 @@ motors.forEach( (motor, idx) => {
   });
   motorByName[motor.name] = motor;
 });
+
+const opcode = {
+  move:         0x8000,
+  speedMove:      0x40,
+  accelSpeedMove: 0x08,
+  startHoming:    0x10,
+  getTestPos:     0x11,
+  softStop:       0x12,
+  softStopRst:    0x13,
+  reset:          0x14,
+  motorOn:        0x15,
+  setHomePos:     0x16,
+  settings:       0x1f,
+};
 
 const motorByNameOrIdx = (nameOrIdx) =>
   (typeof nameOrIdx == 'string') ? motorByName[nameOrIdx] : motors[nameOrIdx];
@@ -69,8 +83,8 @@ const sendSettings = async(nameOrIdx, settings) => {
     }
   });
   if(maxIdx < 0) throw new Error('no setting specified in motor.sendSettings');
-  settingsKeys.forEach((key, idx) => {
-    if(idx == maxIdx) break;
+  settingsKeys.some( (key, idx) => {
+    if(idx == maxIdx) return true;
     if (!(key in settings)) {
       wordsView.setUint16(idx*2, motor.settings[key]);
     };
@@ -78,23 +92,9 @@ const sendSettings = async(nameOrIdx, settings) => {
   return i2c.cmd(motor.i2cAddr, cmdBuf, 1 + (maxIdx+1)*2);
 }
 
-const opcode = {
-  move:         0x8000,
-  speedMove:      0x40,
-  accelSpeedMove: 0x08,
-  startHoming:    0x10,
-  getTestPos:     0x11,
-  softStop:       0x12,
-  softStopRst:    0x13,
-  reset:          0x14,
-  motorOn:        0x15,
-  setHomePos:     0x16,
-  settings:       0x1f,
-};
-
 const sendOneByteCmd = async(nameOrIdx, cmdByte) => {
   const motor = motorByNameOrIdx(nameOrIdx);
-  return i2c.cmd(motor.i2cAddr, Buffer.from([cmdByte]));
+  return i2c.cmd(motor.i2cAddr, [cmdByte]);
 };
 
 const startHoming = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x10) };
@@ -105,15 +105,15 @@ const motorOn     = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x15
 const fakeHome    = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x16) };
 
 const setLeds = async (led1, led2, led3, led4) => {
-  return sendOneByteCmd(0x1d, led1 << 6 | led2 << 4 | led3 << 2 | led4)
+  return sendOneByteCmd(0x1d, led1 << 6 | led2 << 4 | led3 << 2 | led4);
 }
 
 const move = async (nameOrIdx, pos, speed, accel) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   const cmdBuf = new ArrayBuffer(5);       
   if(!speed && !accel) {              
-    const opcodeView = new Uint16Array(cmdBuf);
-    opcodeView[0] = opcode.move + pos;
+    const opcodeView = new DataView(cmdBuf);
+    opcodeView.setUint16(0, opcode.move + pos);
     return i2c.cmd(motor.i2cAddr, cmdBuf, 2);
   }
   if(!accel) { 
@@ -133,6 +133,7 @@ const move = async (nameOrIdx, pos, speed, accel) => {
   }
 }
 
+
 const errString = (code) => {
   switch (code) {
     case 0: return "";
@@ -149,15 +150,13 @@ const errString = (code) => {
 const parseStatus = (motor, buf) => {
   const stateByte = buf[0];
   let pos = ((buf[1] << 8) | buf[2]);
-  if (pos > 32767) {
-    pos -= 65536;
-  }
+  if (pos > 32767) pos -= 65536;
   return {
-    name:        motor.name,
     version:     stateByte >> 7,
+    name:        motor.name,
     busy:    !!((stateByte & 0x04) >> 2),
     motorOn: !!((stateByte & 0x02) >> 1),
-    homed:   !! (stateByte & 1),
+    homed:   !! (stateByte & 0x01),
     pos,
   };
 }
@@ -173,8 +172,8 @@ const findErrMotor = async (mcu) => {
       promiseArr.push(i2c.status(motor.i2cAddr));
     }
   });
-  (await Promise.all(promiseArr)).forEach( (recvBuf, idx) => { 
-    if(recvBuf[0] & 0x70) return {recvBuf, motor: motorsInMcu[idx]};
+  (await Promise.all(promiseArr)).forEach( (buf, idx) => { 
+    if(buf[0] & 0x70) return {buf, mot: motorsInMcu[idx]};
   });
   return {};
 }
@@ -186,6 +185,7 @@ const getStatus = async (nameOrIdx) => {
     throw new Error('status checksum error');
   }
   if(recvBuf[0] & 0x08) {
+    console.log('getStatus err:', recvBuf);
     // some motor had an error
     let errBuf   = recvBuf;
     let errCode  = recvBuf[0] & 0x70;
@@ -194,9 +194,9 @@ const getStatus = async (nameOrIdx) => {
     if(buf) {
       errBuf   = buf;
       errCode  = buf[0] & 0x70;
-      errMotor =  mot;
+      errMotor = mot;
     }
-    // reset all motors in all mcus
+    // stop all pending i2c, reset all motors in all mcus
     i2c.clrQueue();
     const promiseArr = [];
     for(let idx = 0; idx < motors.length; idx++) promiseArr.push(reset(idx));
@@ -205,7 +205,7 @@ const getStatus = async (nameOrIdx) => {
     err.motor = errMotor;
     if(errCode) {
       err.message = 
-          `${errMotor.descr} motor error: ${errString((errBuf[0] & 0x70) >> 4)}`;
+          `Error in ${errMotor.descr} motor: ${errString((errBuf[0] & 0x70) >> 4)}`;
       err.motorStatus = parseStatus(errMotor, errBuf);
     }
     else {
@@ -233,24 +233,24 @@ const getTestPos  = async (nameOrIdx) => {
 }
 
 const notBusy = async (nameOrIdxArr) => {
-  if(!nameOrIdxArr.isArray()) {
+  if(!Array.isArray(nameOrIdxArr)) {
     nameOrIdxArr = [nameOrIdxArr];
   };
-  wait: while(true) {
+  while(true) {
     const promiseArr = [];
     nameOrIdxArr.forEach( (nameOrIdx) => {
       promiseArr.push(getStatus(nameOrIdx));
     });
+    let stillBusy = false;
     (await Promise.all(promiseArr)).forEach( (status) => { 
-      if(status.busy) continue wait;
+      if(status.busy) stillBusy = true;
     });
-    return;
+    if(!stillBusy) return;
   }
 }
 
 module.exports = {
-  motors, motorByName, 
-  defSettings, settingsKeys, sendSettings, 
-  startHoming, fakeHome, move, stop, stopThenRst, reset, motorOn, setLeds,
+  motorByName, sendSettings, startHoming, fakeHome, move, 
+  stop, stopThenRst, reset, motorOn, setLeds,
   getStatus, getTestPos, notBusy,
 };

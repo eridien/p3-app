@@ -44,6 +44,8 @@ exports.clrQueue = () => {
   while(queue.pop());
 }
 exports.cmd = (addr, buf, len) => {
+  if(typeof buf == 'number') buf = [buf];
+  buf = Buffer.from(buf);
   if(!len) len = buf.byteLength;
   return new Promise((resolve, reject) => {
     queue.push({ write:true, addr, buf, len, resolve, reject });
