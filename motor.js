@@ -92,6 +92,14 @@ const sendSettings = async(nameOrIdx, settings) => {
   return i2c.cmd(motor.i2cAddr, cmdBuf, 1 + (maxIdx+1)*2);
 }
 
+const sendSettingsToAllMotors = async () => {
+  const promiseArr = [];
+  motors.forEach( (motor, idx) => {
+    promiseArr.push(sendSettings(idx, motor.settings));
+  });
+  return Promise.all(promiseArr);
+}
+
 const sendOneByteCmd = async(nameOrIdx, cmdByte) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   return i2c.cmd(motor.i2cAddr, [cmdByte]);
@@ -248,6 +256,11 @@ const notBusy = async (nameOrIdxArr) => {
     if(!stillBusy) return;
   }
 }
+
+sendSettingsToAllMotors().catch((err) => {
+  // console.log(err);
+  throw new Error(err);
+});
 
 module.exports = {
   motorByName, sendSettings, startHoming, fakeHome, move, 

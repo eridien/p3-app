@@ -22,7 +22,8 @@ const chkQueue = () => {
       if(req.write) {
         bus.i2cWrite(addr, req.len, req.buf,
           err => {
-            if(err) {reject(err)} else resolve();
+            if(err) reject(Object.assign(err, {req}));
+            else    resolve();
             doOne();
           });
       }
@@ -30,9 +31,11 @@ const chkQueue = () => {
         const buf = new Buffer(4);
         bus.i2cRead(addr, 4, buf,
           err => {
-            if (err) reject(err); else resolve(buf);
+            if (err) reject(Object.assign(err, {req}))
+            else     resolve(buf);
             doOne();
-          });
+          }
+        )
       }
     }
     else qBusy = false;
@@ -43,6 +46,7 @@ const chkQueue = () => {
 exports.clrQueue = () => {
   while(queue.pop());
 }
+
 exports.cmd = (addr, buf, len) => {
   if(typeof buf == 'number') buf = [buf];
   buf = Buffer.from(buf);
@@ -52,11 +56,10 @@ exports.cmd = (addr, buf, len) => {
     chkQueue();
   });
 }
+
 exports.status = (addr) => {
   return new Promise((resolve, reject) => {
     queue.push({ addr, resolve, reject });
     chkQueue();
   });
 }
-
-
