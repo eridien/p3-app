@@ -92,14 +92,6 @@ const sendSettings = async(nameOrIdx, settings) => {
   return i2c.cmd(motor.i2cAddr, cmdBuf, 1 + (maxIdx+1)*2);
 }
 
-const sendSettingsToAllMotors = async () => {
-  const promiseArr = [];
-  motors.forEach( (motor, idx) => {
-    promiseArr.push(sendSettings(idx, motor.settings));
-  });
-  return Promise.all(promiseArr);
-}
-
 const sendOneByteCmd = async(nameOrIdx, cmdByte) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   return i2c.cmd(motor.i2cAddr, [cmdByte]);
@@ -193,7 +185,6 @@ const getStatus = async (nameOrIdx) => {
     throw new Error('status checksum error');
   }
   if(recvBuf[0] & 0x08) {
-    console.log('getStatus err:', recvBuf);
     // some motor had an error
     let errBuf   = recvBuf;
     let errCode  = recvBuf[0] & 0x70;
@@ -257,13 +248,25 @@ const notBusy = async (nameOrIdxArr) => {
   }
 }
 
-sendSettingsToAllMotors().catch((err) => {
-  // console.log(err);
-  throw new Error(err);
-});
+// should use nameOrIdxArr only when debugging
+const initAllMotors = async (nameOrIdxArr) => {
+  if (!nameOrIdxArr) 
+    nameOrIdxArr = motors.map(motor => motor.idx);
+  if(!Array.isArray(nameOrIdxArr)) {
+    nameOrIdxArr = [nameOrIdxArr];
+  };
+  const promiseArr = [];
+  nameOrIdxArr.forEach( (nameOrIdx) => {
+    const motor = motorByNameOrIdx(nameOrIdx);
+    promiseArr.push(getStatus(motor.idx));
+    promiseArr.push(sendSettings(motor.idx, motor.settings));
+  });
+  return Promise.all(promiseArr);
+}
 
 module.exports = {
-  motorByName, sendSettings, startHoming, fakeHome, move, 
+  motorByName, initAllMotors, sendSettings, 
+  startHoming, fakeHome, move, 
   stop, stopThenRst, reset, motorOn, setLeds,
   getStatus, getTestPos, notBusy,
 };
