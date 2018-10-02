@@ -6,4 +6,6 @@
   node --nolazy --no-warnings --inspect-brk=0.0.0.0:9229 index.js
 */
 
-require('./motorTest');
+// require('./motorTest');
+
+require('./websocket');

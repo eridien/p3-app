@@ -1,26 +1,22 @@
 
-const i2c = require('./i2c');
-
 const pin_pwrsw = 11;
 const pin_led = 7;
 const on = true, off = false;
 const onOff = on => on ? 'on' : 'off';
 
 const gpio = require('rpi-gpio')
-const gpiop = gpio.promise;
+const gpiop = gpio.promise; // methods return promises
 const sleep = require('util').promisify(setTimeout);
 
-const ledOnOff = async on => {
-  try {
-    gpiop.write(pin_led, on);
-  } catch (error) {
-    console.log("ledOnOff error:", e.message);
-  }
-}
+const EventEmitter = require('events');
+class PwrEmitter extends EventEmitter {}
+const pwrSwitchEmitter = new PwrEmitter();
+
+const ledOnOff = async (on) => gpiop.write(pin_led, on);
 
 var pwrSwitchIsOn = null;
 
-init = async () => {
+(async () => {
   try {
     await gpiop.setup(pin_pwrsw, gpio.DIR_IN, gpio.EDGE_BOTH);
     await gpiop.setup(pin_led, gpio.DIR_OFF);
@@ -28,25 +24,20 @@ init = async () => {
     pwrSwAction(pwrSwitchIsOn);
   }
   catch (e) {
-    console.log("init error:", e.message);
+    throw new Error(`Power init error: ${e.message}`);
   }
-};
+})();
 
-init();
-
-const pwrSwAction = pwrSwOnOff => {
+const pwrSwAction = (pwrSwOnOff) => {
   try {
     console.log(); //'Power switch is now', onOff(pwrSwOnOff));
     ledOnOff(pwrSwOnOff);
     pwrSwIsOn = pwrSwOnOff;
-    i2c.test(pwrSwOnOff);
-
+    pwrSwitchEmitter.emit('PwrSwitchChg', pwrSwOnOff);
   } catch (error) {
     console.log('pwrSwAction error:', error.message);
   }
 }
-
-exports.isPwrSwOn = () => pwrSwIsOn;
 
 gpio.on('change', (channel, value) => {
   try {
@@ -61,3 +52,5 @@ gpio.on('change', (channel, value) => {
   }
 });
 
+exports.isPwrSwOn     = () => pwrSwIsOn;
+exports.getPwrEmitter = () => pwrSwitchEmitter;
