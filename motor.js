@@ -289,4 +289,3 @@ module.exports = {
   stop, stopThenRst, reset, motorOn, setLeds,
   getStatus, getTestPos, notBusy, rpc
 };
-

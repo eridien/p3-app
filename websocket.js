@@ -7,11 +7,11 @@ const wss = new WebSocket.Server({
   perMessageDeflate: false,
 });
 
-function heartbeat() {
+const heartbeat = () => {
   this.isAlive = true;
-}
+};
 
-wss.on('connection', (ws, req) => {
+wss.on('connection', (ws) => {
   ws.isAlive = true;
   ws.on('pong', heartbeat);
 
@@ -27,14 +27,13 @@ wss.on('connection', (ws, req) => {
         if(err) console.log("rpc parse error send error", {err, message});
       });
       return;
-    }
+    };
 
     let promise;
     switch (msgObj.mod) {
       case 'motor': promise = motor.rpc(msgObj); break;
       default: return;
     };
-
     promise
       .then( (val) => {
         const resp = {id: msgObj.id, type: "res", val};
@@ -48,16 +47,18 @@ wss.on('connection', (ws, req) => {
           if(err) console.log("rpc reject send error", {msgObj, err});
         });
       });
+  });
 });
 
-const interval = setInterval(function ping() {
+const pingAll = () => {
   wss.clients.forEach( (ws) => {
     if (ws.isAlive === false) {
       console.log('WebSocket heartbeat failed');
-      rpc.clear();
-      return ws.terminate();
-    }    
+      ws.terminate();
+      return;
+    };
     ws.isAlive = false;
     ws.ping(() => {});
   });
-}, 10000);
+};
+const interval = setInterval(pingAll, 10000);
