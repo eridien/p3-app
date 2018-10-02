@@ -263,9 +263,30 @@ const initAllMotors = async (nameOrIdxArr) => {
   return Promise.all(promiseArr);
 }
 
+const rpc = (msgObj) => {
+  const {func, args} = msgObj;
+  switch (func) {
+    case 'motorByNameOrIdx':  return motorByNameOrIdx(...args);
+    case 'initAllMotors':     return initAllMotors(...args);
+    case 'sendSettings':      return sendSettings(...args);
+    case 'startHoming':       return startHoming(...args);
+    case 'fakeHome':          return fakeHome(...args);
+    case 'move':              return move(...args);
+    case 'stop':              return stop(...args);
+    case 'stopThenRst':       return stopThenRst(...args);
+    case 'reset':             return reset(...args);
+    case 'motorOn':           return motorOn(...args);
+    case 'setLeds':           return setLeds(...args);
+    case 'getStatus':         return getStatus(...args);
+    case 'getTestPos':        return getTestPos(...args);
+    case 'notBusy':           return notBusy(...args);
+  }
+}
+
 module.exports = {
-  motorByName, initAllMotors, sendSettings, 
+  motorByNameOrIdx, initAllMotors, sendSettings, 
   startHoming, fakeHome, move, 
   stop, stopThenRst, reset, motorOn, setLeds,
-  getStatus, getTestPos, notBusy,
+  getStatus, getTestPos, notBusy, rpc
 };
+

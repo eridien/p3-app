@@ -32,14 +32,7 @@ wss.on('connection', (ws, req) => {
     let promise;
     switch (msgObj.mod) {
       case 'motor': promise = motor.rpc(msgObj); break;
-
-      default:
-        console.log("invalid module", msgObj);
-        const resp = {type: "err", errMsg: "no such module", message};
-        ws.send(JSON.stringify(resp), (err) => {
-          if(err) console.log("invalid module send error", {err, message});
-        });
-        return;
+      default: return;
     };
 
     promise
