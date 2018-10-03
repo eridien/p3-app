@@ -21,10 +21,10 @@ wss.on('connection', (ws) => {
     try {
       msgObj = JSON.parse(message);
     } catch(err) {
-      console.log("rpc message parse error:", {err, message});
+      console.error("rpc message parse error:", {err, message});
       const resp = {type: "err", errMsg: "parse error", err, message};
       ws.send(JSON.stringify(resp), (err) => {
-        if(err) console.log("rpc parse error send error", {err, message});
+        if(err) console.error("rpc parse error send error", {err, message});
       });
       return;
     };
@@ -34,17 +34,18 @@ wss.on('connection', (ws) => {
       case 'motor': promise = motor.rpc(msgObj); break;
       default: return;
     };
-    promise
+    if(promise) promise
       .then( (val) => {
         const resp = {id: msgObj.id, type: "res", val};
         ws.send(JSON.stringify(resp), (err) => {
-          if(err) console.log("rpc resolve send error", {msgObj, err});
+          if(err) console.error("rpc resolve send error", {msgObj, err});
         });
       })
       .catch( (err) => {
+        console.debug('catch:', err);
         const resp = {id: msgObj.id, type: "rej", err};
         ws.send( JSON.stringify(resp), (err) => {
-          if(err) console.log("rpc reject send error", {msgObj, err});
+          if(err) console.error("rpc reject send error", {msgObj, err});
         });
       });
   });

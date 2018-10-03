@@ -40,6 +40,13 @@ defSettings.forEach( (keyVal) => {
   settingsKeys.push(keyVal[0]);
 });
 
+const rejPromise = (msg) => {
+  return new Promise( (res, rej) => {
+    console.error('rejPromise', msg);
+    rej(msg);
+  });
+};
+
 const motorByName = {};
 motors.forEach( (motor, idx) => {
   motor.idx       = idx;
@@ -67,7 +74,7 @@ const opcode = {
 const motorByNameOrIdx = (nameOrIdx) =>
   (typeof nameOrIdx == 'string') ? motorByName[nameOrIdx] : motors[nameOrIdx];
 
-const sendSettings = async(nameOrIdx, settings) => {
+const sendSettings = (nameOrIdx, settings) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   const cmdBuf = new ArrayBuffer(1 + settingsKeys.length * 2);
   const opcodeView = new DataView(cmdBuf, 0);
@@ -92,23 +99,23 @@ const sendSettings = async(nameOrIdx, settings) => {
   return i2c.cmd(motor.i2cAddr, cmdBuf, 1 + (maxIdx+1)*2);
 }
 
-const sendOneByteCmd = async(nameOrIdx, cmdByte) => {
+const sendOneByteCmd = (nameOrIdx, cmdByte) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   return i2c.cmd(motor.i2cAddr, [cmdByte]);
 };
 
-const startHoming = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x10) };
-const stop        = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x12) };
-const stopThenRst = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x13) };
-const reset       = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x14) };
-const motorOn     = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x15) };
-const fakeHome    = async (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x16) };
+const startHoming = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x10) };
+const stop        = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x12) };
+const stopThenRst = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x13) };
+const reset       = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x14) };
+const motorOn     = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x15) };
+const fakeHome    = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x16) };
 
-const setLeds = async (led1, led2, led3, led4) => {
+const setLeds = (led1, led2, led3, led4) => {
   return sendOneByteCmd(0x1d, led1 << 6 | led2 << 4 | led3 << 2 | led4);
 }
 
-const move = async (nameOrIdx, pos, speed, accel) => {
+const move = (nameOrIdx, pos, speed, accel) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   const cmdBuf = new ArrayBuffer(5);       
   if(!speed && !accel) {              
@@ -265,22 +272,28 @@ const initAllMotors = async (nameOrIdxArr) => {
 
 const rpc = (msgObj) => {
   const {func, args} = msgObj;
-  switch (func) {
-    case 'motorByNameOrIdx':  return motorByNameOrIdx(...args);
-    case 'initAllMotors':     return initAllMotors(...args);
-    case 'sendSettings':      return sendSettings(...args);
-    case 'startHoming':       return startHoming(...args);
-    case 'fakeHome':          return fakeHome(...args);
-    case 'move':              return move(...args);
-    case 'stop':              return stop(...args);
-    case 'stopThenRst':       return stopThenRst(...args);
-    case 'reset':             return reset(...args);
-    case 'motorOn':           return motorOn(...args);
-    case 'setLeds':           return setLeds(...args);
-    case 'getStatus':         return getStatus(...args);
-    case 'getTestPos':        return getTestPos(...args);
-    case 'notBusy':           return notBusy(...args);
+  try{
+    switch (func) {
+      case 'motorByNameOrIdx':  return motorByNameOrIdx(...args);
+      case 'initAllMotors':     return initAllMotors(...args);
+      case 'sendSettings':      return sendSettings(...args);
+      case 'startHoming':       return startHoming(...args);
+      case 'fakeHome':          return fakeHome(...args);
+      case 'move':              return move(...args);
+      case 'stop':              return stop(...args);
+      case 'stopThenRst':       return stopThenRst(...args);
+      case 'reset':             return reset(...args);
+      case 'motorOn':           return motorOn(...args);
+      case 'setLeds':           return setLeds(...args);
+      case 'getStatus':         return getStatus(...args);
+      case 'getTestPos':        return getTestPos(...args);
+      case 'notBusy':           return notBusy(...args);
+      default: return rejPromise('invalid motor function name: ' + util.inspect(msgObj));
+    } 
   }
+  catch(err) {
+    return rejPromise('exception during motor command: ' + util.inspect(err));
+  };
 }
 
 module.exports = {
