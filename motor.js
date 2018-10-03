@@ -7,16 +7,16 @@ const motors = [
   // B1
   { name: 'Y', i2cAddr: 0x08, mcu:1, descr: 'Y-Axis' },
   // B4
-  { name: 'R', i2cAddr: 0x10, mcu:2, descr: 'Rotation' },
-  { name: 'Z', i2cAddr: 0x11, mcu:2, descr: 'Z-Axis' }, // s.b. E, temp until new board
-  { name: 'X', i2cAddr: 0x12, mcu:2, descr: 'X-Axis' },
-  { name: 'D', i2cAddr: 0x13, mcu:2, descr: 'none' },   // s.b. Z, temp until new board
-  // U5
-  { name: 'A', i2cAddr: 0x18, mcu:3, descr: 'Tool-A' },
-  { name: 'B', i2cAddr: 0x19, mcu:3, descr: 'Tool-B' },
-  { name: 'C', i2cAddr: 0x1a, mcu:3, descr: 'Tool-C' },
-  { name: 'P', i2cAddr: 0x1b, mcu:3, descr: 'Paste' },
-  { name: 'F', i2cAddr: 0x1c, mcu:3, descr: 'Focus' },
+  // { name: 'R', i2cAddr: 0x10, mcu:2, descr: 'Rotation' },
+  // { name: 'Z', i2cAddr: 0x11, mcu:2, descr: 'Z-Axis' }, // s.b. E, temp until new board
+  // { name: 'X', i2cAddr: 0x12, mcu:2, descr: 'X-Axis' },
+  // { name: 'D', i2cAddr: 0x13, mcu:2, descr: 'none' },   // s.b. Z, temp until new board
+  // // U5
+  // { name: 'A', i2cAddr: 0x18, mcu:3, descr: 'Tool-A' },
+  // { name: 'B', i2cAddr: 0x19, mcu:3, descr: 'Tool-B' },
+  // { name: 'C', i2cAddr: 0x1a, mcu:3, descr: 'Tool-C' },
+  // { name: 'P', i2cAddr: 0x1b, mcu:3, descr: 'Paste' },
+  // { name: 'F', i2cAddr: 0x1c, mcu:3, descr: 'Focus' },
 ];
 
 const defSettings = [
@@ -104,9 +104,9 @@ const sendOneByteCmd = (nameOrIdx, cmdByte) => {
   return i2c.cmd(motor.i2cAddr, [cmdByte]);
 };
 
-const startHoming = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x10) };
+const home        = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x10) };
 const stop        = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x12) };
-const stopThenRst = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x13) };
+const stopRst     = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x13) };
 const reset       = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x14) };
 const motorOn     = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x15) };
 const fakeHome    = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x16) };
@@ -127,7 +127,7 @@ const move = (nameOrIdx, pos, speed, accel) => {
     const opcodeView = new Uint8Array(cmdBuf);
     opcodeView[0] = opcode.speedMove + ((speed >> 8) & 0x3f);
     const posView = new DataView(cmdBuf,1);
-    posView.setUint16(1, pos);
+    posView.setUint16(0, pos);
     return i2c.cmd(motor.i2cAddr, cmdBuf, 3);
   }
   else {              
@@ -248,22 +248,15 @@ const notBusy = async (nameOrIdxArr) => {
     });
     let stillBusy = false;
     (await Promise.all(promiseArr)).forEach( (status) => { 
-      if(status.busy) stillBusy = true;
+      if(status.busy) stillBusy = true;!u
     });
     if(!stillBusy) return;
   }
 }
 
-// should use nameOrIdxArr only when debugging
-const initAllMotors = async (nameOrIdxArr) => {
-  if (!nameOrIdxArr) 
-    nameOrIdxArr = motors.map(motor => motor.idx);
-  if(!Array.isArray(nameOrIdxArr)) {
-    nameOrIdxArr = [nameOrIdxArr];
-  };
+const initAllMotors = async () => {
   const promiseArr = [];
-  nameOrIdxArr.forEach( (nameOrIdx) => {
-    const motor = motorByNameOrIdx(nameOrIdx);
+  motors.forEach( (motor) => {
     promiseArr.push(getStatus(motor.idx));
     promiseArr.push(sendSettings(motor.idx, motor.settings));
   });
@@ -277,11 +270,11 @@ const rpc = (msgObj) => {
       case 'motorByNameOrIdx':  return motorByNameOrIdx(...args);
       case 'initAllMotors':     return initAllMotors(...args);
       case 'sendSettings':      return sendSettings(...args);
-      case 'startHoming':       return startHoming(...args);
+      case 'home':              return home(...args);
       case 'fakeHome':          return fakeHome(...args);
       case 'move':              return move(...args);
       case 'stop':              return stop(...args);
-      case 'stopThenRst':       return stopThenRst(...args);
+      case 'stopRst':           return stopRst(...args);
       case 'reset':             return reset(...args);
       case 'motorOn':           return motorOn(...args);
       case 'setLeds':           return setLeds(...args);
@@ -298,8 +291,8 @@ const rpc = (msgObj) => {
 
 module.exports = {
   motorByNameOrIdx, initAllMotors, sendSettings, 
-  startHoming, fakeHome, move, 
-  stop, stopThenRst, reset, motorOn, setLeds,
+  home, fakeHome, move, 
+  stop, stopRst, reset, motorOn, setLeds,
   getStatus, getTestPos, notBusy, rpc
 };
  

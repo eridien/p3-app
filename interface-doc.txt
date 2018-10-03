@@ -58,13 +58,13 @@
   changing settings when motor is busy may cause unpredictable results
 
   -- one-byte commands --
-  0001 0000  start homing
-  0001 0001  next read position is end position of homing (test pos)
-  0001 0010  soft stop, decelerates, no reset
-  0001 0011  soft stop, decelerates first, then reset
-  0001 0100  hard stop (power down motor with immediate reset)
-  0001 0101  motor on  (power up motor by removing reset)
-  0001 0110  set curpos to home pos value setting (fake homing)
+  0001 0000  home       start homing
+  0001 0001             next read position is end position of homing (test pos)
+  0001 0010  stop       soft stop, decelerates, no reset
+  0001 0011  stopRst,   decelerates and then resets
+  0001 0100  reset      hard stop (power down motor with immediate reset)
+  0001 0101  motorOn    (power up motor by removing reset)
+  0001 0110  fakeHome   set curpos to home pos value setting and turn motor on (fake homing)
 
   -- 2-byte move command --
   1aaa aaaa     top 7 bits of move addr
