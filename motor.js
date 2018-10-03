@@ -292,7 +292,7 @@ const rpc = (msgObj) => {
     } 
   }
   catch(err) {
-    return rejPromise('exception during motor command: ' + util.inspect(err));
+    return rejPromise(`motor command exception, ${err.message}: ${util.inspect(msgObj)}`);
   };
 }
 
@@ -302,3 +302,4 @@ module.exports = {
   stop, stopThenRst, reset, motorOn, setLeds,
   getStatus, getTestPos, notBusy, rpc
 };
+ 

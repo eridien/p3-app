@@ -7,13 +7,9 @@ const wss = new WebSocket.Server({
   perMessageDeflate: false,
 });
 
-const heartbeat = () => {
-  this.isAlive = true;
-};
-
 wss.on('connection', (ws) => {
   ws.isAlive = true;
-  ws.on('pong', heartbeat);
+  ws.on('pong', () => {ws.isAlive = true});
 
   ws.on('message', (message) => {
 
@@ -51,7 +47,7 @@ wss.on('connection', (ws) => {
   });
 });
 
-const pingAll = () => {
+setInterval( () => {
   wss.clients.forEach( (ws) => {
     if (ws.isAlive === false) {
       console.log('WebSocket heartbeat failed');
@@ -60,6 +56,4 @@ const pingAll = () => {
     };
     ws.isAlive = false;
     ws.ping(() => {});
-  });
-};
-const interval = setInterval(pingAll, 10000);
+  })}, 10000);
