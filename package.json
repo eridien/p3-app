@@ -1,7 +1,7 @@
 {
-  "name": "p3-app",
+  "name": "p3-srvr",
   "version": "1.0.0",
-  "description": "webapp server for eridien P3",
+  "description": "raspi server for eridien P3",
   "main": "index.js",
   "dependencies": {
     "i2c-bus": "^4.0.1",

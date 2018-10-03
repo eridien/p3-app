@@ -267,6 +267,7 @@ const rpc = (msgObj) => {
   const {func, args} = msgObj;
   try{
     switch (func) {
+      case 'motors':            return new Promise((res) => res(motors));
       case 'motorByNameOrIdx':  return motorByNameOrIdx(...args);
       case 'initAllMotors':     return initAllMotors(...args);
       case 'sendSettings':      return sendSettings(...args);
@@ -290,7 +291,7 @@ const rpc = (msgObj) => {
 }
 
 module.exports = {
-  motorByNameOrIdx, initAllMotors, sendSettings, 
+  motors, motorByNameOrIdx, initAllMotors, sendSettings, 
   home, fakeHome, move, 
   stop, stopRst, reset, motorOn, setLeds,
   getStatus, getTestPos, notBusy, rpc
