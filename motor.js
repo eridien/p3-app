@@ -5,18 +5,18 @@ const i2c  = require('./i2c');
 
 const motors = [
   // B1
-  { name: 'Y', i2cAddr: 0x08, mcu:1, descr: 'Y-Axis' },
+  { name: 'Y', i2cAddr: 0x08, mcu:1, hasLimit: false, descr: 'Y-Axis' },
   // B4
-  // { name: 'R', i2cAddr: 0x10, mcu:2, descr: 'Rotation' },
-  // { name: 'Z', i2cAddr: 0x11, mcu:2, descr: 'Z-Axis' }, // s.b. E, temp until new board
-  // { name: 'X', i2cAddr: 0x12, mcu:2, descr: 'X-Axis' },
-  // { name: 'D', i2cAddr: 0x13, mcu:2, descr: 'none' },   // s.b. Z, temp until new board
+  // { name: 'R', i2cAddr: 0x10, mcu:2, hasLimit: false, descr: 'Rotation' },
+  // { name: 'Z', i2cAddr: 0x11, mcu:2, hasLimit: false, descr: 'Z-Axis' }, // s.b. E, temp until new board
+  // { name: 'X', i2cAddr: 0x12, mcu:2, hasLimit: false, descr: 'X-Axis' },
+  // { name: 'D', i2cAddr: 0x13, mcu:2, hasLimit: false, descr: 'none' },   // s.b. Z, temp until new board
   // // U5
-  // { name: 'A', i2cAddr: 0x18, mcu:3, descr: 'Tool-A' },
-  // { name: 'B', i2cAddr: 0x19, mcu:3, descr: 'Tool-B' },
-  // { name: 'C', i2cAddr: 0x1a, mcu:3, descr: 'Tool-C' },
-  // { name: 'P', i2cAddr: 0x1b, mcu:3, descr: 'Paste' },
-  // { name: 'F', i2cAddr: 0x1c, mcu:3, descr: 'Focus' },
+  // { name: 'A', i2cAddr: 0x18, mcu:3, hasLimit: false, descr: 'Tool-A' },
+  // { name: 'B', i2cAddr: 0x19, mcu:3, hasLimit: false, descr: 'Tool-B' },
+  // { name: 'C', i2cAddr: 0x1a, mcu:3, hasLimit: false, descr: 'Tool-C' },
+  // { name: 'P', i2cAddr: 0x1b, mcu:3, hasLimit: false, descr: 'Paste' },
+  // { name: 'F', i2cAddr: 0x1c, mcu:3, hasLimit: false, descr: 'Focus' },
 ];
 
 const defSettings = [
