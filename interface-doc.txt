@@ -82,6 +82,10 @@
     0aaa aaaa  top 7 bits of move addr,
     aaaa aaaa  bottom 8 bits
 
+  -- 2-byte jog command  (no bounds checking, does not need to be homed)
+  001d ssss    d: direction  
+    ssss ssss  s: number of steps
+
   -- 3-byte to 21-byte settings command --
   write may be short, only setting first entries
   0001 1111  load settings, all are two-byte, big-endian, 16-bit values

@@ -59,6 +59,7 @@ motors.forEach( (motor, idx) => {
 
 const opcode = {
   move:         0x8000,
+  jog:          0x2000,
   speedMove:      0x40,
   accelSpeedMove: 0x08,
   startHoming:    0x10,
@@ -138,6 +139,14 @@ const move = (nameOrIdx, pos, speed, accel) => {
     speedPosView.setUint16(2, pos);
     return i2c.cmd(motor.i2cAddr, cmdBuf, 5);
   }
+}
+
+const jog = (nameOrIdx, dir, dist) => {
+  const motor = motorByNameOrIdx(nameOrIdx);
+  const cmdBuf  = new ArrayBuffer(5);       
+  const cmdView = new DataView(cmdBuf);
+  cmdView.setUint16(0, opcode.jog + (dir << 12) + dist);
+  return i2c.cmd(motor.i2cAddr, cmdBuf, 2);
 }
 
 const errString = (code) => {
@@ -274,6 +283,7 @@ const rpc = (msgObj) => {
       case 'home':              return home(...args);
       case 'fakeHome':          return fakeHome(...args);
       case 'move':              return move(...args);
+      case 'jog':               return jog(...args);
       case 'stop':              return stop(...args);
       case 'stopRst':           return stopRst(...args);
       case 'reset':             return reset(...args);
@@ -292,7 +302,7 @@ const rpc = (msgObj) => {
 
 module.exports = {
   motors, motorByNameOrIdx, initAllMotors, sendSettings, 
-  home, fakeHome, move, 
+  home, jog, fakeHome, move, 
   stop, stopRst, reset, motorOn, setLeds,
   getStatus, getTestPos, notBusy, rpc
 };
