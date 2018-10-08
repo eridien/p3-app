@@ -7,24 +7,24 @@ const motors = [
   // B1
   { name: 'Y', i2cAddr: 0x08, mcu:1, hasLimit: false, descr: 'Y-Axis' },
   // B4
-  // { name: 'R', i2cAddr: 0x10, mcu:2, hasLimit: false, descr: 'Rotation' },
-  // { name: 'Z', i2cAddr: 0x11, mcu:2, hasLimit: false, descr: 'Z-Axis' }, // s.b. E, temp until new board
-  // { name: 'X', i2cAddr: 0x12, mcu:2, hasLimit: false, descr: 'X-Axis' },
+  { name: 'R', i2cAddr: 0x10, mcu:2, hasLimit: false, descr: 'Rotation' },
+  { name: 'E', i2cAddr: 0x11, mcu:2, hasLimit: false, descr: 'Extruder' }, // s.b. E, temp until new board
+  { name: 'X', i2cAddr: 0x12, mcu:2, hasLimit: false, descr: 'X-Axis' },
   // { name: 'D', i2cAddr: 0x13, mcu:2, hasLimit: false, descr: 'none' },   // s.b. Z, temp until new board
   // // U5
-  // { name: 'A', i2cAddr: 0x18, mcu:3, hasLimit: false, descr: 'Tool-A' },
-  // { name: 'B', i2cAddr: 0x19, mcu:3, hasLimit: false, descr: 'Tool-B' },
-  // { name: 'C', i2cAddr: 0x1a, mcu:3, hasLimit: false, descr: 'Tool-C' },
-  // { name: 'P', i2cAddr: 0x1b, mcu:3, hasLimit: false, descr: 'Paste' },
-  // { name: 'F', i2cAddr: 0x1c, mcu:3, hasLimit: false, descr: 'Focus' },
+  { name: 'A', i2cAddr: 0x18, mcu:3, hasLimit: false, descr: 'Tool-A' },
+  { name: 'B', i2cAddr: 0x19, mcu:3, hasLimit: false, descr: 'Tool-B' },
+  { name: 'C', i2cAddr: 0x1a, mcu:3, hasLimit: false, descr: 'Tool-C' },
+  { name: 'P', i2cAddr: 0x1b, mcu:3, hasLimit: false, descr: 'Paste' },
+  { name: 'F', i2cAddr: 0x1c, mcu:3, hasLimit: false, descr: 'Focus' },
 ];
 
 const defSettings = [
-  // accel values by 0..7 index: 0, 8000, 16000, 24000, 32000, 40000, 50000, 60000
-  // accel in mm/sec/sec:        0,  200,   400,   600,   800,  1000,  1250,  1500
-  ['accel',             7], // acceleration code -- max
-  ['speed',          2000], // default speed\', 50 mm/sec
-  ['pullInSpeed',     500], // start/stop pull-in speed -- 12.5 mm/sec
+  // accel is 0..7: none, 4000, 8000, 20000, 40000, 80000, 200000, 400000 steps/sec/sec
+  // for 1/40 mm steps: none, 100, 200, 500, 1000, 2000, 5000, 10000 mm/sec/sec
+  ['accel',             4], // acceleration code (40000 steps/sec/sec, 1000 mm/sec/sec)
+  ['speed',          2000], // default speed, 50 mm/sec
+  ['jerk',           1200], // start/stop pull-in speed -- 30 mm/sec
   ['maxPos',        32000], // max pos is 800 mm
   ['homeSpeed',      1000], // homing speed (25 mm/sec)
   ['homeBkupSpeed',    60], // homing back-up speed (1.5 mm/sec)
@@ -34,6 +34,19 @@ const defSettings = [
   ['clkPeriod',        30], // period of clock in usecs (applies to all motors in mcu)
                           // lower value reduces stepping jitter, but may cause errors
 ];
+
+/*  TODO: use these for unipolar
+     4, // acceleration index,  0 is no acceleration
+   400, // default speed is 8 mm/sec (20 mm/sec is max motor can go w no torque)
+   100, // jerk (start/stop speed limit) (2 mm/sec)
+ 32767, // max pos is 600 mm (debug))
+   200, // homing speed (4 mm/sec)
+    60, // homing back-up ms->speed (1.2 mm/sec)
+    25, // home offset distance: 0.5 mm
+     0, // home pos value, set cur pos to this after homing
+     0, // limit sw control (0 is normal)
+    30, // period of clock in usecs  (applies to all motors in mcu)
+*/
 
 const settingsKeys = [];
 defSettings.forEach( (keyVal) => {
@@ -117,14 +130,15 @@ const setLeds = (led1, led2, led3, led4) => {
 }
 
 const move = (nameOrIdx, pos, speed, accel) => {
+  if(accel === '') accel = 0;
   const motor = motorByNameOrIdx(nameOrIdx);
   const cmdBuf = new ArrayBuffer(5);       
-  if(!speed && !accel) {              
+  if(!speed && accel === null) {              
     const opcodeView = new DataView(cmdBuf);
     opcodeView.setUint16(0, opcode.move + pos);
     return i2c.cmd(motor.i2cAddr, cmdBuf, 2);
   }
-  if(!accel) { 
+  if(accel === null) { 
     const opcodeView = new Uint8Array(cmdBuf);
     opcodeView[0] = opcode.speedMove + ((speed >> 8) & 0x3f);
     const posView = new DataView(cmdBuf,1);
@@ -187,7 +201,9 @@ const findErrMotor = async (mcu) => {
       promiseArr.push(i2c.status(motor.i2cAddr));
     }
   });
-  (await Promise.all(promiseArr)).forEach( (buf, idx) => { 
+  const resArr = await Promise.all(promiseArr);
+  resArr.forEach( (buf, idx) => { 
+    console.debug('resArr', resArr);
     if(buf[0] & 0x70) return {buf, mot: motorsInMcu[idx]};
   });
   return {};
@@ -210,20 +226,21 @@ const getStatus = async (nameOrIdx) => {
       errCode  = buf[0] & 0x70;
       errMotor = mot;
     }
-    // stop all pending i2c, reset all motors in all mcus
-    i2c.clrQueue();
-    const promiseArr = [];
-    for(let idx = 0; idx < motors.length; idx++) promiseArr.push(reset(idx));
-    await Promise.all(promiseArr);
+    console.debug(buf);
+    // // stop all pending i2c, reset all motors in all mcus
+    // i2c.clrQueue();
+    // const promiseArr = [];
+    // for(let idx = 0; idx < motors.length; idx++) promiseArr.push(reset(idx));
+    // await Promise.all(promiseArr);
     const err = new Error();
     err.motor = errMotor;
     if(errCode) {
-      err.message = 
-          `Error in ${errMotor.descr} motor: ${errString((errBuf[0] & 0x70) >> 4)}`;
+      err.message = `Motor ${errMotor.name}: ${errString((errBuf[0] & 0x70) >> 4)}`;
       err.motorStatus = parseStatus(errMotor, errBuf);
     }
     else {
-      err.message = `Unknown motor error in mcu ${errMotor.mcu}.`;
+      // debugger;
+      err.message = `Unknown motor error in mcu ${errMotor.mcu}, motor ${errMotor.name}.`;
       err.motorStatus  = parseStatus(motor, recvBuf);
     }
     throw err;
@@ -272,7 +289,7 @@ const initAllMotors = async () => {
   return Promise.all(promiseArr);
 }
 
-const rpc = (msgObj) => {
+const rpc = async (msgObj) => {
   const {func, args} = msgObj;
   try{
     switch (func) {
@@ -292,11 +309,11 @@ const rpc = (msgObj) => {
       case 'getStatus':         return getStatus(...args);
       case 'getTestPos':        return getTestPos(...args);
       case 'notBusy':           return notBusy(...args);
-      default: return rejPromise('invalid motor function name: ' + util.inspect(msgObj));
+      default: throw new Error('invalid motor function name: ' + func);
     } 
   }
   catch(err) {
-    return rejPromise(`motor command exception, ${err.message}: ${util.inspect(msgObj)}`);
+    throw new Error(`motor command exception, ${err.message}: ${util.inspect(msgObj)}`);
   };
 }
 

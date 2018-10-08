@@ -38,8 +38,7 @@ wss.on('connection', (ws) => {
         });
       })
       .catch( (err) => {
-        console.debug('catch:', err);
-        const resp = {id: msgObj.id, type: "rej", err};
+        let resp = {id: msgObj.id, type: "rej", err};
         ws.send( JSON.stringify(resp), (err) => {
           if(err) console.error("rpc reject send error", {msgObj, err});
         });

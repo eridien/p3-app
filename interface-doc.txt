@@ -8,10 +8,9 @@
   The LEDS also have their own slave addr.
 
   At the time of this writing the controller code can be built for:
-      One bipolar motor    (define BM and B1) (PIC16F15345)
+      One bipolar motor    (define BM and B1) (PIC16F15375)
       Four bipolar motors  (define BM and B4) (PIC24F16KM202)
       Five unipolar motors (define U5)        (PIC24F16KM204)
-  The PIC models can be different.
 
   The motors have code letters (name) used in many places
   // B1
@@ -30,25 +29,29 @@
   // not really a motor
   { name: 'L', i2cAddr: 0x1d, mcu:U5, descr: 'Leds' },
 
-  The MCU controller has a specific meaning for a step.
+  The MCU controller has a specific different meaning for a step.
   For bipolar it is a 1/8 micro-step and for unipolar it is one of four phases.
+  This makes bipolar numbers close to unipolar and lets things fit in 16 bits.
 
   If using a 20-tooth GT2 pulley, then one step is 1/40 mm for bipolar
   and 1/50 mm for unipolar motor (28BYJ-48)
+
     for bipolar: (typical 200 step motor and 20-tooth GT2 pulley)
         steps/rev:        1600
         dist/rev:           40 mm
-        max step count: 32,767
-        max distance:      800 mm
+        dist/step         1/40 mm
+        max distance:      800 mm  (max step count: 32,767)
+
     for unipolar:  (geared 28BYJ-48 motor and 20-tooth GT2 pulley)
         steps/rev:        2048
         dist/rev:           40 mm
-        max step count: 32,767
-        max distance:      625 mm
+        dist/step         1/50 mm
+        max distance:      640 mm  ((max step count: 32,767, i.e. 16 revolutions)
+        max speed         1000 steps/sec (2 secs/rev, no torque) (measured)
 
   all speed is in steps/sec (except speed-move cmd)
-  acceleration is 0..7: none, 8000, 16000, 24000, 32000, 40000, 50000, 60000
-  for 1/40 mm steps: none, 200, 400, 600, 800, 1000, 1250, 1500 mm/sec/sec
+  accel is 0..7: none, 4000, 8000, 20000, 40000, 80000, 200000, 400000 steps/sec/sec
+  for 1/40 mm steps: none, 100, 200, 500, 1000, 2000, 5000, 10000 mm/sec/sec
   
   Any I2C write to MCU is a command.  Any read returns a 4-byte status.
   all commands are started immediately even when motor is busy (moving, homing, etc.)
@@ -67,19 +70,19 @@
   0001 0110  fakeHome   set curpos to home pos value setting and turn motor on (fake homing)
 
   -- 2-byte move command --
-  1aaa aaaa     top 7 bits of move addr
-    aaaa aaaa  bottom 8 bit
+  1aaa aaaa    top 7 bits of target position
+    aaaa aaaa  bottom 8 bits
 
   -- 3-byte speed-move command --
   01ss ssss     set speed setting to value s times 256
-    0aaa aaaa   top 7 bits of move addr,
+    0aaa aaaa   top 7 bits of target position,
     aaaa aaaa   bottom 8 bits
 
   -- 5-byte accel-speed-move command --  
   0000 1ccc    set acceleration idx setting
     ssss ssss  top 8 bits of speed,
     ssss ssss  bottom 8 bits
-    0aaa aaaa  top 7 bits of move addr,
+    0aaa aaaa  top 7 bits of target position,
     aaaa aaaa  bottom 8 bits
 
   -- 2-byte jog command  (no bounds checking, does not need to be homed)
@@ -91,8 +94,8 @@
   0001 1111  load settings, all are two-byte, big-endian, 16-bit values
     acceleration rate table index 0..7, 0 is off
     default speed
-    start/stop speed (above this, acceleration is needed)
-    max pos     (min pos is always zero))
+    jerk (start/stop speed and above this speed, acceleration is needed)
+    max pos (min pos is always zero))
     homing speed
     homing back-up speed
     home offset distance (final home distance from switch)
@@ -130,7 +133,7 @@
     4) cccc cccc  8-bit cksum, sum of first 3 bytes
 
   Error codes for state byte above 
-    MOTOR_FAULT_ERROR   0x10  over-heated or over-current driver chip
+    MOTOR_FAULT_ERROR   0x10  missing, over-heated, or over-current driver chip
     I2C_OVERFLOW_ERROR  0x20  i2c byte received before last taken
     CMD_DATA_ERROR      0x30  command format incorrect
     CMD_NOT_DONE_ERROR  0x40  new command arrived before old cmd finished
