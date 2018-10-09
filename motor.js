@@ -9,7 +9,7 @@ const motors = [
   // B4
   { name: 'R', i2cAddr: 0x10, mcu:2, hasLimit: false, descr: 'Rotation' },
   { name: 'E', i2cAddr: 0x11, mcu:2, hasLimit: false, descr: 'Extruder' }, // s.b. E, temp until new board
-  { name: 'X', i2cAddr: 0x12, mcu:2, hasLimit: false, descr: 'X-Axis' },
+  { name: 'X', i2cAddr: 0x12, mcu:2, hasLimit: true, descr: 'X-Axis' },
   // { name: 'D', i2cAddr: 0x13, mcu:2, hasLimit: false, descr: 'none' },   // s.b. Z, temp until new board
   // // U5
   { name: 'A', i2cAddr: 0x18, mcu:3, hasLimit: false, descr: 'Tool-A' },
