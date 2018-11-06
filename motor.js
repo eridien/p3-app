@@ -5,21 +5,24 @@ const i2c  = require('./i2c');
 
 const motors = [
   // B1
-  { name: 'Y', i2cAddr: 0x08, mcu:1, hasLimit: false, descr: 'Y-Axis' },
-  // B4
-  { name: 'R', i2cAddr: 0x10, mcu:2, hasLimit: false, descr: 'Rotation' },
+  { name: 'Y', i2cAddr: 0x08, mcu:1, hasLimit: true, descr: 'Y-Axis' },
+  // B5
+  { name: 'R', i2cAddr: 0x10, mcu:2, hasLimit: true,  descr: 'Rotation' },
   { name: 'E', i2cAddr: 0x11, mcu:2, hasLimit: false, descr: 'Extruder' }, // s.b. E, temp until new board
-  { name: 'X', i2cAddr: 0x12, mcu:2, hasLimit: true, descr: 'X-Axis' },
-  // { name: 'D', i2cAddr: 0x13, mcu:2, hasLimit: false, descr: 'none' },   // s.b. Z, temp until new board
-  // // U5
-  { name: 'A', i2cAddr: 0x18, mcu:3, hasLimit: false, descr: 'Tool-A' },
-  { name: 'B', i2cAddr: 0x19, mcu:3, hasLimit: false, descr: 'Tool-B' },
-  { name: 'C', i2cAddr: 0x1a, mcu:3, hasLimit: false, descr: 'Tool-C' },
-  { name: 'P', i2cAddr: 0x1b, mcu:3, hasLimit: false, descr: 'Paste' },
-  { name: 'F', i2cAddr: 0x1c, mcu:3, hasLimit: false, descr: 'Focus' },
+  { name: 'X', i2cAddr: 0x12, mcu:2, hasLimit: true,  descr: 'X-Axis' },
+  { name: 'F', i2cAddr: 0x13, mcu:2, hasLimit: false, descr: 'Focus' },
+  { name: 'Z', i2cAddr: 0x14, mcu:2, hasLimit: true,  descr: 'Zoom' },
+  // U3
+  { name: 'A', i2cAddr: 0x18, mcu:3, hasLimit: true,  descr: 'Tool-A' },
+  { name: 'B', i2cAddr: 0x19, mcu:3, hasLimit: true,  descr: 'Tool-B' },
+  { name: 'P', i2cAddr: 0x1a, mcu:3, hasLimit: false, descr: 'Paste' },
 ];
 
-const defSettings = [
+const UMCU = 3;
+const LED_ADDR = 0x1b; // one greater than max addr in U3
+
+// settings order must match mcu
+const defBipolarSettings = [
   // accel is 0..7: none, 4000, 8000, 20000, 40000, 80000, 200000, 400000 steps/sec/sec
   // for 1/40 mm steps: none, 100, 200, 500, 1000, 2000, 5000, 10000 mm/sec/sec
   ['accel',             4], // acceleration code (40000 steps/sec/sec, 1000 mm/sec/sec)
@@ -35,21 +38,25 @@ const defSettings = [
                           // lower value reduces stepping jitter, but may cause errors
 ];
 
-/*  TODO: use these for unipolar
-     4, // acceleration index,  0 is no acceleration
-   400, // default speed is 8 mm/sec (20 mm/sec is max motor can go w no torque)
-   100, // jerk (start/stop speed limit) (2 mm/sec)
- 32767, // max pos is 600 mm (debug))
-   200, // homing speed (4 mm/sec)
-    60, // homing back-up ms->speed (1.2 mm/sec)
-    25, // home offset distance: 0.5 mm
-     0, // home pos value, set cur pos to this after homing
-     0, // limit sw control (0 is normal)
-    30, // period of clock in usecs  (applies to all motors in mcu)
-*/
+// setting names must match
+const defUnipolarSettings = [
+  // accel is 0..7: none, 4000, 8000, 20000, 40000, 80000, 200000, 400000 steps/sec/sec
+  // for 1/40 mm steps: none, 100, 200, 500, 1000, 2000, 5000, 10000 mm/sec/sec
+  ['accel',             4], // acceleration code (40000 steps/sec/sec, 1000 mm/sec/sec)
+  ['speed',           400], // default speed, 50 mm/sec
+  ['jerk',            100], // start/stop pull-in speed -- 30 mm/sec
+  ['maxPos',        32000], // max pos is 800 mm
+  ['homeSpeed',       200], // homing speed (25 mm/sec)
+  ['homeBkupSpeed',    60], // homing back-up speed (1.5 mm/sec)
+  ['homeOfs',          25], // home offset distance, 0.5 mm
+  ['homePosVal',        0], // home pos value, set pos to this after homing
+  ['limitSw',           0], // limit switch control
+  ['clkPeriod',        30], // period of clock in usecs (applies to all motors in mcu)
+                          // lower value reduces stepping jitter, but may cause errors
+];
 
 const settingsKeys = [];
-defSettings.forEach( (keyVal) => {
+defBipolarSettings.forEach( (keyVal) => {
   settingsKeys.push(keyVal[0]);
 });
 
@@ -64,9 +71,16 @@ const motorByName = {};
 motors.forEach( (motor, idx) => {
   motor.idx       = idx;
   motor.settings  = {};
-  defSettings.forEach( (keyVal) => {
-    motor.settings[keyVal[0]] = keyVal[1];
-  });
+  if(motor.mcu < UMCU) {
+    defBipolarSettings.forEach( (keyVal) => {
+      motor.settings[keyVal[0]] = keyVal[1];
+    });
+  }
+  else {  
+    defUnipolarSettings.forEach( (keyVal) => {
+      motor.settings[keyVal[0]] = keyVal[1];
+    });
+  };
   motorByName[motor.name] = motor;
 });
 
@@ -126,7 +140,7 @@ const motorOn     = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x15) };
 const fakeHome    = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x16) };
 
 const setLeds = (led1, led2, led3, led4) => {
-  return sendOneByteCmd(0x1d, led1 << 6 | led2 << 4 | led3 << 2 | led4);
+  return sendOneByteCmd(LED_ADDR, led1 << 6 | led2 << 4 | led3 << 2 | led4);
 }
 
 const move = (nameOrIdx, pos, speed, accel) => {
