@@ -21,13 +21,13 @@ init = async () => {
   }
 }
 
-const pumpOnOff = async on => {
+const onOff = async (idx, on) => {
   try {
-    gpiop.write(pin_vpump, on);
+    gpiop.write(pin_all_out[idx], on);
   } catch (error) {
-    console.log("pumpOnOff error:", e.message);
+    console.log("onOff error:", e.message);
   }
 }
 
-module.exports = {init, pumpOnOff};
+module.exports = {init, onOff};
 
