@@ -1,6 +1,6 @@
 
-const m  = require('./motor');
-const p  = require('./plumbing');
+const m     = require('./motor');
+const p     = require('./plumbing');
 const sleep = require('util').promisify(setTimeout);
 
 // (async () => {
@@ -27,30 +27,26 @@ const sleep = require('util').promisify(setTimeout);
 // })()
 //   .then(  (val) => console.log('test finished, val:', val))
 //   .catch( (err) => console.log('test error',    err));
-
   
   (async () => {
     await p.init();
-    await p.onOff(0, true);  // pump on
-    await p.onOff(1, false); // bleed off
+    await p.onOff('pump', true);
+    // await p.onOff('bleed', true);
     let count = 0;
     while(true) {
-      console.log('vac: ', await m.getVacSensor());
-      if(++count == 5)
-        await p.onOff(1, true); // bleed on
-      if(count   == 10)
-        await p.onOff(0, false); // pump off
+      const adcVal = await m.getVacSensor();
+      const   inHg = (722-adcVal) / (44/20.75);
+      console.log('inHg: ', inHg.toFixed(1));
+      if(++count == 2)
+        await p.onOff('pump', false);
       await sleep(2000);
     }
   })()
     .then(  (val) => console.log('test finished, val:', val))
     .catch( (err) => console.log('test error',    err));
   
-    /*
-       0 "Hg => 577
-      21 "Hg => 544
-
-      sensor leaks
-      change input resistors to 4.7 k (x100)
-      longer sensor cord
-    */
+/*
+       0 "Hg => 577   722
+      21 "Hg => 544   678
+                 33    44
+*/

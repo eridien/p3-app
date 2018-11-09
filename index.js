@@ -10,7 +10,3 @@
 require('./test');
 
 // require('./websocket');
-
-var gpio = require('rpi-gpio')
-var gpiop = gpio.promise;
-
