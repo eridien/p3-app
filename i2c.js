@@ -1,7 +1,14 @@
 /*
-/boot/config.txt
-/boot/overlays/README
+to set up i2c ...
+
+1) run raspi-config and enable i2c
+
+2) add this line to /boot/config.txt ...
 dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=2,i2c_gpio_scl=3,i2c_gpio_delay_us=1
+
+3) reboot
+
+(see /boot/overlays/README)
 */
 
 const I2CBUS = 3;

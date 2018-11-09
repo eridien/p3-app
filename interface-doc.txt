@@ -3,33 +3,30 @@
   -----------------------------------------------------
   (should match eridien/mcu-motors respository for MCU version)
 
-  Each MCU is an I2C slave.  Each motor in the MCU has its own I2C address.
+  Each MCU is an I2C slave.  Each motor in each MCU has its own I2C address.
   Each motor state is independent (except for error which stops entire mcu).
   The LEDS also have their own slave addr.
 
   At the time of this writing the controller code can be built for:
-      One bipolar motor    (define BM and B1) (PIC16F15375)
-      Four bipolar motors  (define BM and B4) (PIC24F16KM202)
-      Five unipolar motors (define U5)        (PIC24F16KM204)
+      One bipolar motor     (define BM and B1) (PIC16F15345)
+      Five bipolar motors   (define BM and B5) (PIC24F16KM202)
+      Three unipolar motors (define U3)        (PIC24F16KM202)
 
   The motors have code letters (name) used in many places
   // B1
   { name: 'Y', i2cAddr: 0x08, mcu:B1, descr: 'Y-Axis' },
-  // B4
-  { name: 'R', i2cAddr: 0x10, mcu:B4, descr: 'Rotation' },
-  { name: 'E', i2cAddr: 0x11, mcu:B4, descr: 'Extruder' },
-  { name: 'X', i2cAddr: 0x12, mcu:B4, descr: 'X-Axis'   },
-  { name: 'Z', i2cAddr: 0x13, mcu:B4, descr: 'Z-Axis'   }, 
-  // U5
-  { name: 'A', i2cAddr: 0x18, mcu:U5, descr: 'Tool-A' },
-  { name: 'B', i2cAddr: 0x19, mcu:U5, descr: 'Tool-B' },
-  { name: 'C', i2cAddr: 0x1a, mcu:U5, descr: 'Tool-C' },
-  { name: 'P', i2cAddr: 0x1b, mcu:U5, descr: 'Paste'  },
-  { name: 'F', i2cAddr: 0x1c, mcu:U5, descr: 'Focus'  },
-  // not really a motor
-  { name: 'L', i2cAddr: 0x1d, mcu:U5, descr: 'Leds' },
+  // B5
+  { name: 'R', i2cAddr: 0x10, mcu:B5, descr: 'Rotation' },
+  { name: 'E', i2cAddr: 0x11, mcu:B5, descr: 'Extruder' },
+  { name: 'X', i2cAddr: 0x12, mcu:B5, descr: 'X-Axis'   },
+  { name: 'F', i2cAddr: 0x13, mcu:B5, descr: 'Focus'  },
+  { name: 'Z', i2cAddr: 0x14, mcu:B5, descr: 'Z-Axis'   }, 
+  // U3
+  { name: 'A', i2cAddr: 0x18, mcu:U3, descr: 'Tool-A' },
+  { name: 'B', i2cAddr: 0x19, mcu:U3, descr: 'Tool-B' },
+  { name: 'P', i2cAddr: 0x1a, mcu:U3, descr: 'Paste'  },
 
-  The MCU controller has a specific different meaning for a step.
+  The MCU controller has a specific unusual meaning for a step.
   For bipolar it is a 1/8 micro-step and for unipolar it is one of four phases.
   This makes bipolar numbers close to unipolar and lets things fit in 16 bits.
 
@@ -58,16 +55,17 @@
   if needed, the host can check for finished by polling busy-bit in state
   no commands are buffered like G-Code commands
   commands can be linked to async operations such as clicking on a webpage
-  changing settings when motor is busy may cause unpredictable results
+  changed settings take effect immediately even when motor is busy
 
   -- one-byte commands --
   0001 0000  home       start homing
-  0001 0001             next read position is end position of homing (test pos)
+  0001 0001  test       next read position is end position of homing (test pos)
   0001 0010  stop       soft stop, decelerates, no reset
   0001 0011  stopRst,   decelerates and then resets
   0001 0100  reset      hard stop (power down motor with immediate reset)
   0001 0101  motorOn    (power up motor by removing reset)
   0001 0110  fakeHome   set curpos to home pos value setting and turn motor on (fake homing)
+  0001 0111  vacuum     next read position is actually vacuum (ADC in MCU B1)
 
   -- 2-byte move command --
   1aaa aaaa    top 7 bits of target position
@@ -145,6 +143,10 @@
   this allows testing to make sure no steps are missed when doing move/home
   Command 0x11 tells next status read to return this test position
   This status read will have a magic state value of 0x04 (normally impossible)
+
+  For MCU B1 only ...
+  Command 0x17 tells next status to return the ADC value for the vacuum sensor
+  This status read will have a magic state value of 0x05 (normally impossible)
 
   position values in commands must be positive, top bit is zero
   position returned in status is signed and may be negative (e.g. when homing)

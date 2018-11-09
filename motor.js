@@ -6,16 +6,16 @@ const i2c  = require('./i2c');
 const motors = [
   // B1
   { name: 'Y', i2cAddr: 0x08, mcu:1, hasLimit: true, descr: 'Y-Axis' },
-  // B5
-  { name: 'R', i2cAddr: 0x10, mcu:2, hasLimit: true,  descr: 'Rotation' },
-  { name: 'E', i2cAddr: 0x11, mcu:2, hasLimit: false, descr: 'Extruder' }, // s.b. E, temp until new board
-  { name: 'X', i2cAddr: 0x12, mcu:2, hasLimit: true,  descr: 'X-Axis' },
-  { name: 'F', i2cAddr: 0x13, mcu:2, hasLimit: false, descr: 'Focus' },
-  { name: 'Z', i2cAddr: 0x14, mcu:2, hasLimit: true,  descr: 'Zoom' },
-  // U3
-  { name: 'A', i2cAddr: 0x18, mcu:3, hasLimit: true,  descr: 'Tool-A' },
-  { name: 'B', i2cAddr: 0x19, mcu:3, hasLimit: true,  descr: 'Tool-B' },
-  { name: 'P', i2cAddr: 0x1a, mcu:3, hasLimit: false, descr: 'Paste' },
+  // // B5
+  // { name: 'R', i2cAddr: 0x10, mcu:2, hasLimit: true,  descr: 'Rotation' },
+  // { name: 'E', i2cAddr: 0x11, mcu:2, hasLimit: false, descr: 'Extruder' }, // s.b. E, temp until new board
+  // { name: 'X', i2cAddr: 0x12, mcu:2, hasLimit: true,  descr: 'X-Axis' },
+  // { name: 'F', i2cAddr: 0x13, mcu:2, hasLimit: false, descr: 'Focus' },
+  // { name: 'Z', i2cAddr: 0x14, mcu:2, hasLimit: true,  descr: 'Zoom' },
+  // // U3
+  // { name: 'A', i2cAddr: 0x18, mcu:3, hasLimit: true,  descr: 'Tool-A' },
+  // { name: 'B', i2cAddr: 0x19, mcu:3, hasLimit: true,  descr: 'Tool-B' },
+  // { name: 'P', i2cAddr: 0x1a, mcu:3, hasLimit: false, descr: 'Paste' },
 ];
 
 const UMCU = 3;
@@ -96,6 +96,7 @@ const opcode = {
   reset:          0x14,
   motorOn:        0x15,
   setHomePos:     0x16,
+  getVacSens:     0x17, // read vacuum sensor ADC (mcu 1 only)
   settings:       0x1f,
 };
 
@@ -265,8 +266,7 @@ const getStatus = async (nameOrIdx) => {
 const getTestPos  = async (nameOrIdx) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   // make sure these are adjacent in I2C queue
-  // request test pos one-byte-cmd is 0x11
-  const promise1 = i2c.cmd(motor.i2cAddr, Buffer.from([0x11]));
+  const promise1 = i2c.cmd(motor.i2cAddr, Buffer.from([opcode.getTestPos]));
   const promise2 = i2c.status(motor.i2cAddr);
   await promise1;
   const recvBuf = await promise2;
@@ -275,6 +275,18 @@ const getTestPos  = async (nameOrIdx) => {
   let pos = ((recvBuf[1] << 8) | recvBuf[2]);
   if (pos > 32767) pos -= 65536;
   return pos;
+}
+
+const getVacSensor  = async () => {
+  const motor = motors[0];
+  // make sure these are adjacent in I2C queue
+  const promise1 = i2c.cmd(motor.i2cAddr, Buffer.from([opcode.getVacSens]));
+  const promise2 = i2c.status(motor.i2cAddr);
+  await promise1;
+  const recvBuf = await promise2;
+  if(recvBuf[0] != 0x05) 
+    throw new Error('invalid state byte in getVacSensor: ' + util.inspect(recvBuf));
+  return ((recvBuf[1] << 8) | recvBuf[2]);
 }
 
 const notBusy = async (nameOrIdxArr) => {
@@ -322,6 +334,7 @@ const rpc = async (msgObj) => {
       case 'setLeds':           return setLeds(...args);
       case 'getStatus':         return getStatus(...args);
       case 'getTestPos':        return getTestPos(...args);
+      case 'getVacSensor':      return getVacSensor(...args);
       case 'notBusy':           return notBusy(...args);
       default: throw new Error('invalid motor function name: ' + func);
     } 
@@ -335,6 +348,6 @@ module.exports = {
   motors, motorByNameOrIdx, initAllMotors, sendSettings, 
   home, jog, fakeHome, move, 
   stop, stopRst, reset, motorOn, setLeds,
-  getStatus, getTestPos, notBusy, rpc
+  getStatus, getTestPos, getVacSensor, notBusy, rpc
 };
  
