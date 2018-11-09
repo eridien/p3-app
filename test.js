@@ -35,9 +35,9 @@ const sleep = require('util').promisify(setTimeout);
     let count = 0;
     while(true) {
       const adcVal = await m.getVacSensor();
-      const   inHg = (722-adcVal) / (44/20.75);
+      const   inHg = (722-adcVal) / (48/20.8);
       console.log('inHg: ', inHg.toFixed(1));
-      if(++count == 2)
+      if(++count == 3)
         await p.onOff('pump', false);
       await sleep(2000);
     }
