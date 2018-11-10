@@ -14,19 +14,19 @@
 
   The motors have code letters (name) used in many places
   // B1
-  { name: 'Y', i2cAddr: 0x08, mcu:B1, descr: 'Y-Axis' },
+  { name: 'Y', i2cAddr: 0x08, mcu:B1, descr: 'Y-Axis'   },
   // B5
   { name: 'R', i2cAddr: 0x10, mcu:B5, descr: 'Rotation' },
   { name: 'E', i2cAddr: 0x11, mcu:B5, descr: 'Extruder' },
   { name: 'X', i2cAddr: 0x12, mcu:B5, descr: 'X-Axis'   },
-  { name: 'F', i2cAddr: 0x13, mcu:B5, descr: 'Focus'  },
+  { name: 'F', i2cAddr: 0x13, mcu:B5, descr: 'Focus'    },
   { name: 'Z', i2cAddr: 0x14, mcu:B5, descr: 'Z-Axis'   }, 
   // U3
-  { name: 'A', i2cAddr: 0x18, mcu:U3, descr: 'Tool-A' },
-  { name: 'B', i2cAddr: 0x19, mcu:U3, descr: 'Tool-B' },
-  { name: 'P', i2cAddr: 0x1a, mcu:U3, descr: 'Paste'  },
+  { name: 'A', i2cAddr: 0x18, mcu:U3, descr: 'Tool-A'   },
+  { name: 'B', i2cAddr: 0x19, mcu:U3, descr: 'Tool-B'   },
+  { name: 'P', i2cAddr: 0x1a, mcu:U3, descr: 'Paster'   },
 
-  The MCU controller has a specific unusual meaning for a step.
+  The MCU controller has a specific unusual meaning for a "step".
   For bipolar it is a 1/8 micro-step and for unipolar it is one of four phases.
   This makes bipolar numbers close to unipolar and lets things fit in 16 bits.
 
@@ -43,10 +43,10 @@
         steps/rev:        2048
         dist/rev:           40 mm
         dist/step         1/50 mm
-        max distance:      640 mm  ((max step count: 32,767, i.e. 16 revolutions)
+        max distance:      640 mm  ((max step count: 32,767)
         max speed         1000 steps/sec (2 secs/rev, no torque) (measured)
 
-  all speed is in steps/sec (except speed-move cmd)
+  all speed is in steps/sec
   accel is 0..7: none, 4000, 8000, 20000, 40000, 80000, 200000, 400000 steps/sec/sec
   for 1/40 mm steps: none, 100, 200, 500, 1000, 2000, 5000, 10000 mm/sec/sec
   
@@ -99,19 +99,18 @@
     home offset distance (final home distance from switch)
     home pos value (set cur pos to this value after homing, usually 0)
     limit switch control
-    mcuClock;   // period of clock in usecs  (applies to all motors)
+    backlash distance
+    mcuClock;   // period of clock in usecs  (motor 0 applies to entire mcu)
 
   limit sw control byte format for settings command above
   zero-byte is normal behavior
-  00sslee
-    ss  start dir: 0: rev, 1: fwd, 2: limit sw, 3: not limit sw
+  00ssl00
+    ss  start dir: 0: rev, 2: limit sw, 3: not limit sw
      l  switch pin active voltage, 0: lo,  1: hi
-    ee  force ending side: 0: no, 1: sw pin active, 2: sw pin not active
 
   limit sw control handles limit switch in middle of travel, not on an end
   start-dir values 2 and 3 allowing homing from either side of switch
-  force-ending-side values 1 and 2 set ending position
-  ends on specified side of switch no matter what side it started on
+  ends on dir=1 side of switch no matter what side it started on
 
   -- 1-byte LED command (only command to specific LED I2C addr)
   aabb ccdd  each pair are 0-3 brightness for an LED (on/off only for now)
@@ -126,7 +125,7 @@
         b: busy     (homing, moving, or stopping)
         o: motor on (not in reset)
         h: homed    (motor has been homed since last reset)
-    2) aaaa aaaa  signed motor position, top 8 bits (or test pos, see below)
+    2) aaaa aaaa  signed motor position, top 8 bits (or test pos or vacuum)
     3) aaaa aaaa  followed by bottom 8 bits
     4) cccc cccc  8-bit cksum, sum of first 3 bytes
 
@@ -144,9 +143,10 @@
   Command 0x11 tells next status read to return this test position
   This status read will have a magic state value of 0x04 (normally impossible)
 
+  position values in commands must be positive, top bit is zero
+  position returned in status is signed and may be negative (e.g. when homing)
+
   For MCU B1 only ...
   Command 0x17 tells next status to return the ADC value for the vacuum sensor
   This status read will have a magic state value of 0x05 (normally impossible)
 
-  position values in commands must be positive, top bit is zero
-  position returned in status is signed and may be negative (e.g. when homing)

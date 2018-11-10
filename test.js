@@ -1,6 +1,9 @@
 
-const m     = require('./motor');
-const p     = require('./plumbing');
+// const m = require('./motor');
+// const p = require('./plumbing');
+
+const c = require('./camera');
+
 const sleep = require('util').promisify(setTimeout);
 
 // (async () => {
@@ -28,25 +31,30 @@ const sleep = require('util').promisify(setTimeout);
 //   .then(  (val) => console.log('test finished, val:', val))
 //   .catch( (err) => console.log('test error',    err));
   
-  (async () => {
-    await p.init();
-    await p.onOff('pump', true);
-    // await p.onOff('bleed', true);
-    let count = 0;
-    while(true) {
-      const adcVal = await m.getVacSensor();
-      const   inHg = (722-adcVal) / (48/20.8);
-      console.log('inHg: ', inHg.toFixed(1));
-      if(++count == 3)
-        await p.onOff('pump', false);
-      await sleep(2000);
-    }
-  })()
-    .then(  (val) => console.log('test finished, val:', val))
-    .catch( (err) => console.log('test error',    err));
-  
+// (async () => {
+//   await p.init();
+//   await p.onOff('pump', true);
+//   // await p.onOff('bleed', true);
+//   let count = 0;
+//   while(true) {
+//     const adcVal = await m.getVacSensor();
+//     const   inHg = (722-adcVal) / (48/20.8);
+//     console.log('inHg: ', inHg.toFixed(1));
+//     if(++count == 3)
+//       await p.onOff('pump', false);
+//     await sleep(2000);
+//   }
+// })()
+//   .then(  (val) => console.log('test finished, val:', val))
+//   .catch( (err) => console.log('test error',    err));
 /*
-       0 "Hg => 577   722
-      21 "Hg => 544   678
-                 33    44
-*/
+     0 "Hg => 577   722
+    21 "Hg => 544   678
+               33    44
+*/  
+
+(async () => {
+  await c.zoom(50);
+})()
+  .then(  (val) => console.log('test finished, val:', val))
+  .catch( (err) => console.log('test error',    err));

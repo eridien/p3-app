@@ -8,7 +8,7 @@ const motors = [
   // { name: 'Y', i2cAddr: 0x08, mcu:1, hasLimit: true, descr: 'Y-Axis' },
   // // B5
   // { name: 'R', i2cAddr: 0x10, mcu:2, hasLimit: true,  descr: 'Rotation' },
-  { name: 'E', i2cAddr: 0x11, mcu:2, hasLimit: false, descr: 'Extruder' },
+  { name: 'E', i2cAddr: 0x11, mcu:2, hasLimit: true, descr: 'Extruder' },
   // { name: 'X', i2cAddr: 0x12, mcu:2, hasLimit: true,  descr: 'X-Axis' },
   { name: 'F', i2cAddr: 0x13, mcu:2, hasLimit: false, descr: 'Focus' },
   // { name: 'Z', i2cAddr: 0x14, mcu:2, hasLimit: false,  descr: 'Zoom' },
@@ -34,6 +34,7 @@ const defBipolarSettings = [
   ['homeOfs',          40], // home offset distance, 1 mm
   ['homePosVal',        0], // home pos value, set pos to this after homing
   ['limitSw',           0], // limit switch control
+  ['backlashWid',      0], // width of backslash dead interval
   ['clkPeriod',        30], // period of clock in usecs (applies to all motors in mcu)
                           // lower value reduces stepping jitter, but may cause errors
 ];
@@ -51,6 +52,7 @@ const defUnipolarSettings = [
   ['homeOfs',          25], // home offset distance, 0.5 mm
   ['homePosVal',        0], // home pos value, set pos to this after homing
   ['limitSw',           0], // limit switch control
+  ['backlashWid',      0], // width of backslash dead interval
   ['clkPeriod',        30], // period of clock in usecs (applies to all motors in mcu)
                           // lower value reduces stepping jitter, but may cause errors
 ];
@@ -103,6 +105,11 @@ const opcode = {
 const motorByNameOrIdx = (nameOrIdx) =>
   (typeof nameOrIdx == 'string') ? motorByName[nameOrIdx] : motors[nameOrIdx];
 
+const mmToSteps = (nameOrIdx, mm) => {
+  const mcu = motorByNameOrIdx(nameOrIdx).mcu;
+  return mm * (mcu < 2 ? 40 : 50);
+}
+  
 const sendSettings = (nameOrIdx, settings) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   const cmdBuf = new ArrayBuffer(1 + settingsKeys.length * 2);
@@ -345,7 +352,7 @@ const rpc = async (msgObj) => {
 }
 
 module.exports = {
-  motors, motorByNameOrIdx, initAllMotors, sendSettings, 
+motors, motorByNameOrIdx, initAllMotors, sendSettings, mmToSteps,
   home, jog, fakeHome, move, 
   stop, stopRst, reset, motorOn, setLeds,
   getStatus, getTestPos, getVacSensor, notBusy, rpc
