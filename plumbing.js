@@ -1,4 +1,6 @@
 
+// to set up GPIO, run raspi-config and enable GPIO
+
 const pin = {
   pump  : 13,
   bleed : 22,

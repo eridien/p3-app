@@ -8,7 +8,7 @@
       "type": "node",
       "request": "attach",
       "name": "srvr",
-      "address": "192.168.1.215",
+      "address": "192.168.1.151",
       "port": 9229,
       "localRoot": "${workspaceFolder}",
       "remoteRoot": "/root/dev/p3/p3-srvr",

@@ -5,13 +5,13 @@ const i2c  = require('./i2c');
 
 const motors = [
   // B1
-  { name: 'Y', i2cAddr: 0x08, mcu:1, hasLimit: true, descr: 'Y-Axis' },
+  // { name: 'Y', i2cAddr: 0x08, mcu:1, hasLimit: true, descr: 'Y-Axis' },
   // // B5
   // { name: 'R', i2cAddr: 0x10, mcu:2, hasLimit: true,  descr: 'Rotation' },
-  // { name: 'E', i2cAddr: 0x11, mcu:2, hasLimit: false, descr: 'Extruder' }, // s.b. E, temp until new board
+  { name: 'E', i2cAddr: 0x11, mcu:2, hasLimit: false, descr: 'Extruder' },
   // { name: 'X', i2cAddr: 0x12, mcu:2, hasLimit: true,  descr: 'X-Axis' },
-  // { name: 'F', i2cAddr: 0x13, mcu:2, hasLimit: false, descr: 'Focus' },
-  // { name: 'Z', i2cAddr: 0x14, mcu:2, hasLimit: true,  descr: 'Zoom' },
+  { name: 'F', i2cAddr: 0x13, mcu:2, hasLimit: false, descr: 'Focus' },
+  // { name: 'Z', i2cAddr: 0x14, mcu:2, hasLimit: false,  descr: 'Zoom' },
   // // U3
   // { name: 'A', i2cAddr: 0x18, mcu:3, hasLimit: true,  descr: 'Tool-A' },
   // { name: 'B', i2cAddr: 0x19, mcu:3, hasLimit: true,  descr: 'Tool-B' },
