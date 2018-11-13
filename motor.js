@@ -99,7 +99,7 @@ const opcode = {
   softStopRst:    0x13,
   reset:          0x14,
   motorOn:        0x15,
-  setHomePos:     0x16,
+  fakeHome:       0x16,
   getVacSens:     0x17, // read vacuum sensor ADC (mcu 1 only)
   settings:       0x1f,
 };

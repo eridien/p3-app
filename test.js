@@ -54,25 +54,45 @@ const sleep = require('util').promisify(setTimeout);
 */  
 
 // (async () => {
-//   await c.zoom(50);
+//   await m.sendSettings('F', {homePosVal: 800});
+//   await m.home('E');
+//   await m.fakeHome('F');
+//   await m.notBusy(['E', 'F']);
+//   for(let z = 0; z <= 80; z+=.05) {
+//     const f = c.zoomMmToFocusSteps(z);
+//     console.log('z:', z.toFixed(1), 'f:', f.toFixed(1));
+//     await m.move('E', z*40);  // s.b. 'Z' but board broken
+//     await m.move('F', f);
+//     await m.notBusy(['E', 'F']);
+//   }
+//   await m.home('E');
+//   await m.move('F', 800);
+//   await m.notBusy(['E', 'F']);
+//   // await m.reset('F');
 // })()
 //   .then(  (val) => console.log('test finished, val:', val))
 //   .catch( (err) => console.log('test error',    err));
 
-(async () => {
-  await m.home('E');
-  await sleep(4000);
-  await m.fakeHome('F');
-  for(let z = 0; z <= 80; z+=.2) {
+  (async () => {
+    await m.sendSettings('E', {speed: 6000});
+    await m.sendSettings('F', {speed: 16000, homePosVal: 800});
+    await m.home('E');
+    await m.notBusy(['E', 'F']);
+    await m.fakeHome('F');
+    await m.notBusy(['E', 'F']);
+
+    const z = 75;
     const f = c.zoomMmToFocusSteps(z);
     console.log('z:', z.toFixed(1), 'f:', f.toFixed(1));
     await m.move('E', z*40);  // s.b. 'Z' but board broken
     await m.move('F', f);
     await m.notBusy(['E', 'F']);
-  }
-  await m.home('E');
-  await m.move('F', 0);
-  await m.notBusy(['E', 'F']);
-})()
-  .then(  (val) => console.log('test finished, val:', val))
-  .catch( (err) => console.log('test error',    err));
+    await sleep(2000);
+
+    await m.home('E');
+    await m.move('F', 800);
+    await m.notBusy(['E', 'F']);
+  })()
+    .then(  (val) => console.log('test finished, val:', val))
+    .catch( (err) => console.log('test error',    err));
+  
