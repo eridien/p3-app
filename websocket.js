@@ -7,6 +7,8 @@ const wss = new WebSocket.Server({
   perMessageDeflate: false,
 });
 
+console.log('p3 websocket listening on port 3535');
+
 wss.on('connection', (ws) => {
   ws.isAlive = true;
   ws.on('pong', () => {ws.isAlive = true});

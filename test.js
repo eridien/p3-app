@@ -1,5 +1,5 @@
 
-// const m = require('./motor');
+const m = require('./motor');
 // const p = require('./plumbing');
 
 const c = require('./camera');
@@ -53,8 +53,26 @@ const sleep = require('util').promisify(setTimeout);
                33    44
 */  
 
+// (async () => {
+//   await c.zoom(50);
+// })()
+//   .then(  (val) => console.log('test finished, val:', val))
+//   .catch( (err) => console.log('test error',    err));
+
 (async () => {
-  await c.zoom(50);
+  await m.home('E');
+  await sleep(4000);
+  await m.fakeHome('F');
+  for(let z = 0; z <= 80; z+=.2) {
+    const f = c.zoomMmToFocusSteps(z);
+    console.log('z:', z.toFixed(1), 'f:', f.toFixed(1));
+    await m.move('E', z*40);  // s.b. 'Z' but board broken
+    await m.move('F', f);
+    await m.notBusy(['E', 'F']);
+  }
+  await m.home('E');
+  await m.move('F', 0);
+  await m.notBusy(['E', 'F']);
 })()
   .then(  (val) => console.log('test finished, val:', val))
   .catch( (err) => console.log('test error',    err));

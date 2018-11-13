@@ -53,6 +53,7 @@ exports.clrQueue = () => {
 }
 
 exports.cmd = (addr, buf, len) => {
+  console.log({addr, buf, len});
   if(typeof buf == 'number') buf = [buf];
   buf = Buffer.from(buf);
   if(!len) len = buf.byteLength;

@@ -34,9 +34,10 @@ const defBipolarSettings = [
   ['homeOfs',          40], // home offset distance, 1 mm
   ['homePosVal',        0], // home pos value, set pos to this after homing
   ['limitSw',           0], // limit switch control
-  ['backlashWid',      0], // width of backslash dead interval
+  ['backlashWid',       0], // width of backslash dead interval
+  ['backlashSpeed',  2400], // speed when skipping over backslash dead interval
   ['clkPeriod',        30], // period of clock in usecs (applies to all motors in mcu)
-                          // lower value reduces stepping jitter, but may cause errors
+                            // lower value reduces stepping jitter, but may cause errors
 ];
 
 // setting names must match
@@ -52,7 +53,8 @@ const defUnipolarSettings = [
   ['homeOfs',          25], // home offset distance, 0.5 mm
   ['homePosVal',        0], // home pos value, set pos to this after homing
   ['limitSw',           0], // limit switch control
-  ['backlashWid',      0], // width of backslash dead interval
+  ['backlashWid',       0], // width of backslash dead interval
+  ['backlashSpeed',   200], // speed when skipping over backslash dead interval
   ['clkPeriod',        30], // period of clock in usecs (applies to all motors in mcu)
                           // lower value reduces stepping jitter, but may cause errors
 ];
@@ -155,12 +157,12 @@ const move = (nameOrIdx, pos, speed, accel) => {
   if(accel === '') accel = 0;
   const motor = motorByNameOrIdx(nameOrIdx);
   const cmdBuf = new ArrayBuffer(5);       
-  if(!speed && accel === null) {              
+  if(speed === undefined && accel === undefined) {              
     const opcodeView = new DataView(cmdBuf);
     opcodeView.setUint16(0, opcode.move + pos);
     return i2c.cmd(motor.i2cAddr, cmdBuf, 2);
   }
-  if(accel === null) { 
+  if(accel === undefined) { 
     const opcodeView = new Uint8Array(cmdBuf);
     opcodeView[0] = opcode.speedMove + ((speed >> 8) & 0x3f);
     const posView = new DataView(cmdBuf,1);
@@ -176,6 +178,7 @@ const move = (nameOrIdx, pos, speed, accel) => {
     return i2c.cmd(motor.i2cAddr, cmdBuf, 5);
   }
 }
+
 
 const jog = (nameOrIdx, dir, dist) => {
   const motor = motorByNameOrIdx(nameOrIdx);
@@ -307,7 +310,7 @@ const notBusy = async (nameOrIdxArr) => {
     });
     let stillBusy = false;
     (await Promise.all(promiseArr)).forEach( (status) => { 
-      if(status.busy) stillBusy = true;!u
+      if(status.busy) stillBusy = true;
     });
     if(!stillBusy) return;
   }
