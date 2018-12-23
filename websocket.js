@@ -57,4 +57,4 @@ setInterval( () => {
     };
     ws.isAlive = false;
     ws.ping(() => {});
-  })}, 10000);
+  })}, 5000);

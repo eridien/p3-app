@@ -4,7 +4,8 @@
   "description": "raspi server for eridien P3",
   "main": "index.js",
   "dependencies": {
-    "i2c-bus": "^4.0.5",
+    "i2c-bus": "^4.0.6",
+    "nan": "^2.11.1",
     "p-queue": "^2.4.2",
     "pify": "^4.0.0",
     "rpi-gpio": "^1.0.0",
