@@ -24,8 +24,11 @@ const motOfs     = 1;     // rightmost light bit (d1)
 let curOutReg = 0;
 
 let swCallbacks = [];
-let curSwVal = null;
+let curSwVal    = null;
+let lastSwVal   = null;
 let debounceHistory = [];
+
+let forceReturn = true;
 
 const cmd = async (reg, data) =>
   await i2c.write(i2cAddr, [reg, data]);
@@ -56,17 +59,17 @@ const readSw = async () => {
     const promise1 = i2c.write(i2cAddr, inputReg);
     const promise2 = i2c.read(i2cAddr);
     await promise1;
-    const valRead = !!((await promise2) & trisVal);
+    const newVal = !!((await promise2) & trisVal);
     let allEqNew = true;
     for(let v of debounceHistory) {
-      if(v !== valRead) {
+      if(v !== newVal) {
         allEqNew = false;
         break;
       }
     }
-    debounceHistory.push(valRead);
+    debounceHistory.push(newVal);
     if (debounceHistory.length > 3) debounceHistory.shift();
-    if(allEqNew) curSwVal = valRead;
+    if(allEqNew) curSwVal = newVal;
     return curSwVal;
   }
   catch(e) {
@@ -88,21 +91,23 @@ const setMotLed = async (on, grnNotRed) => {
 
 const swOn = () => curSwVal;
 
-const onSwchg = async (cb) => { 
+const onSwChg = (cb) => { 
   swCallbacks.push(cb);
+  forceReturn = true;
 }
 
-(async () => {
-  curSwVal = await readSw();
-  setInterval( async () => {
-    newVal = await readSw();
-    if(newVal !== curSwVal) {
-      curSwVal = newVal;
-      for(let cb of swCallbacks) {
-        cb.call(null, curSwVal);
-      }
+const chkSw = async () => {
+  const newVal = await readSw();
+  if(forceReturn || newVal !== lastSwVal) {
+    lastSwVal = newVal;
+    for(let cb of swCallbacks) {
+      cb.call(null, curSwVal);
     }
-  }, 200);
-})();
+  }
+  forceReturn = false;
+};
+chkSw();
 
-module.exports = {init, swOn, onSwchg, setLights, setWifiLed, setMotLed};
+setInterval( chkSw, 100 );
+
+module.exports = {init, swOn, onSwChg, setLights, setWifiLed, setMotLed};
