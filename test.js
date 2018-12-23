@@ -86,8 +86,9 @@ const sleep = require('util').promisify(setTimeout);
   //   }
   // })().then( () => console.log('done') );
   
-let val;
+let on;
 (async () => {
   await exp.init();
-  val = await exp.get();
-})().then( () => console.log('done:', val) );
+  await exp.init();
+  on = await exp.swOn();
+})().then( () => console.log('switch on:', on) );

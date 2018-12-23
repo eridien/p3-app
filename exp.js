@@ -7,18 +7,17 @@ const i2cAddr = 0x27;
 
 // PCA9554 registers
 const inputReg  = 0;
-const outputReg = 0;
-const polInvReg = 0;
-const configReg = 0;
-
-const configVal = 0x01;  // sw is only input
+const outputReg = 1;
+const polInvReg = 2;
+const trisReg   = 3;
+const trisVal = 0x01;  // sw is only input
 
 const cmd = async (reg, data) =>
   await i2c.write(i2cAddr, [reg, data]);
 
 const init = async () => {
   try {
-    await cmd(configReg, configVal);
+    await cmd(trisReg, trisVal);
     await cmd(polInvReg, 0);
   }
   catch(e) {
@@ -35,17 +34,17 @@ const set = async (data) => {
   }
 }
 
-const get = async () => {
+const swOn = async () => {
   try {
     // make sure these are adjacent in I2C queue
     const promise1 = i2c.write(i2cAddr, inputReg);
     const promise2 = i2c.read(i2cAddr);
     await promise1;
-    return await promise2;
+    return !!((await promise2) & trisVal);
   }
   catch(e) {
     console.log('exp get error', e);
   }
 }
 
-module.exports = {init, get, set};
+module.exports = {init, swOn, set};
