@@ -10,7 +10,18 @@ const inputReg  = 0;
 const outputReg = 1;
 const polInvReg = 2;
 const trisReg   = 3;
-const trisVal = 0x01;  // sw is only input
+
+const trisVal    = 0x01;  // sw is only input
+const lightsMask = 0xf0;  // cam lights leds (nesw)
+const wifiMask   = 0x08   // green wifi led
+const motMask    = 0x06;  // red/green motor led
+
+const lightsOfs  = 4;     // rightmost light bit (d4)
+const wifiOfs    = 3;     // rightmost wifi bit (d3)
+const motOfs     = 1;     // rightmost light bit (d1)
+
+// mirror of output reg;
+let curVal = 0;
 
 const cmd = async (reg, data) =>
   await i2c.write(i2cAddr, [reg, data]);
@@ -28,6 +39,7 @@ const init = async () => {
 const set = async (data) => {
   try {
     await cmd(outputReg, data);
+    curVal = data;
   }
   catch(e) {
     console.log('exp set error', e);
@@ -47,4 +59,16 @@ const swOn = async () => {
   }
 }
 
-module.exports = {init, swOn, set};
+const setLights = async (lights) => {
+  set((curval & ~lightsMask) | (lights << lightsOfs));
+}
+
+const setWifiLed = async (on) => {
+  set((curval & ~wifiMask) | (on << wifiOfs));
+}
+
+const setMotLed = async (on, grnNotRed) => {
+  set( (curval & ~motMask) | (on ? ((grnNotRed ? 2 : 1) << motOfs) : 0));
+}
+
+module.exports = {init, swOn, setLights, setWifiLed, setMotLed};
