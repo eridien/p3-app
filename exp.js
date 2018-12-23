@@ -42,7 +42,7 @@ const init = async () => {
 
 const set = async (data) => {
   try {
-    await cmd(outputReg, data);
+    await cmd(outputReg, data);;
     curOutReg = data;
   }
   catch(e) {
@@ -70,7 +70,7 @@ const readSw = async () => {
     return curSwVal;
   }
   catch(e) {
-    console.log('exp get error', e);
+    console.log('exp readSw error', e);
   }
 }
 
@@ -93,12 +93,13 @@ const onSwchg = async (cb) => {
 }
 
 (async () => {
-  let newVal;
-  setInterval(() => {
-    if((newVal = await readSw()) !== curSwVal) {
+  curSwVal = await readSw();
+  setInterval( async () => {
+    newVal = await readSw();
+    if(newVal !== curSwVal) {
       curSwVal = newVal;
       for(let cb of swCallbacks) {
-        cb(curSwVal);
+        cb.call(null, curSwVal);
       }
     }
   }, 200);
