@@ -21,7 +21,11 @@ const wifiOfs    = 3;     // rightmost wifi bit (d3)
 const motOfs     = 1;     // rightmost light bit (d1)
 
 // mirror of output reg;
-let curVal = 0;
+let curOutReg = 0;
+
+let swCallbacks = [];
+let curSwVal = null;
+let debounceHistory = [];
 
 const cmd = async (reg, data) =>
   await i2c.write(i2cAddr, [reg, data]);
@@ -39,20 +43,31 @@ const init = async () => {
 const set = async (data) => {
   try {
     await cmd(outputReg, data);
-    curVal = data;
+    curOutReg = data;
   }
   catch(e) {
     console.log('exp set error', e);
   }
 }
 
-const swOn = async () => {
+const readSw = async () => {
   try {
     // make sure these are adjacent in I2C queue
     const promise1 = i2c.write(i2cAddr, inputReg);
     const promise2 = i2c.read(i2cAddr);
     await promise1;
-    return !!((await promise2) & trisVal);
+    const valRead = !!((await promise2) & trisVal);
+    let allEqNew = true;
+    for(let v of debounceHistory) {
+      if(v !== valRead) {
+        allEqNew = false;
+        break;
+      }
+    }
+    debounceHistory.push(valRead);
+    if (debounceHistory.length > 3) debounceHistory.shift();
+    if(allEqNew) curSwVal = valRead;
+    return curSwVal;
   }
   catch(e) {
     console.log('exp get error', e);
@@ -71,4 +86,22 @@ const setMotLed = async (on, grnNotRed) => {
   set( (curval & ~motMask) | (on ? ((grnNotRed ? 2 : 1) << motOfs) : 0));
 }
 
-module.exports = {init, swOn, setLights, setWifiLed, setMotLed};
+const swOn = () => curSwVal;
+
+const onSwchg = async (cb) => { 
+  swCallbacks.push(cb);
+}
+
+(async () => {
+  let newVal;
+  setInterval(() => {
+    if((newVal = await readSw()) !== curSwVal) {
+      curSwVal = newVal;
+      for(let cb of swCallbacks) {
+        cb(curSwVal);
+      }
+    }
+  }, 200);
+})();
+
+module.exports = {init, swOn, onSwchg, setLights, setWifiLed, setMotLed};
