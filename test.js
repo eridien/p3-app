@@ -1,6 +1,7 @@
 
 const m = require('./motor');
 const c = require('./camera');
+const exp = require('./exp');
 
 const sleep = require('util').promisify(setTimeout);
 
@@ -85,4 +86,8 @@ const sleep = require('util').promisify(setTimeout);
   //   }
   // })().then( () => console.log('done') );
   
-  
+let val;
+(async () => {
+  await exp.init();
+  val = await exp.get();
+})().then( () => console.log('done:', val) );

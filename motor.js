@@ -134,12 +134,12 @@ const sendSettings = (nameOrIdx, settings) => {
       wordsView.setUint16(idx*2, motor.settings[key]);
     };
   });
-  return i2c.cmd(motor.i2cAddr, cmdBuf, 1 + (maxIdx+1)*2);
+  return i2c.write(motor.i2cAddr, cmdBuf, 1 + (maxIdx+1)*2);
 }
 
 const sendOneByteCmd = (nameOrIdx, cmdByte) => {
   const motor = motorByNameOrIdx(nameOrIdx);
-  return i2c.cmd(motor.i2cAddr, [cmdByte]);
+  return i2c.write(motor.i2cAddr, [cmdByte]);
 };
 
 const home        = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x10) };
@@ -160,14 +160,14 @@ const move = (nameOrIdx, pos, speed, accel) => {
   if(speed === undefined && accel === undefined) {              
     const opcodeView = new DataView(cmdBuf);
     opcodeView.setUint16(0, opcode.move + pos);
-    return i2c.cmd(motor.i2cAddr, cmdBuf, 2);
+    return i2c.write(motor.i2cAddr, cmdBuf, 2);
   }
   if(accel === undefined) { 
     const opcodeView = new Uint8Array(cmdBuf);
     opcodeView[0] = opcode.speedMove + ((speed >> 8) & 0x3f);
     const posView = new DataView(cmdBuf,1);
     posView.setUint16(0, pos);
-    return i2c.cmd(motor.i2cAddr, cmdBuf, 3);
+    return i2c.write(motor.i2cAddr, cmdBuf, 3);
   }
   else {              
     const opcodeView = new Uint8Array(cmdBuf);
@@ -175,7 +175,7 @@ const move = (nameOrIdx, pos, speed, accel) => {
     const speedPosView = new DataView(cmdBuf,1);
     speedPosView.setUint16(0, speed);
     speedPosView.setUint16(2, pos);
-    return i2c.cmd(motor.i2cAddr, cmdBuf, 5);
+    return i2c.write(motor.i2cAddr, cmdBuf, 5);
   }
 }
 
@@ -185,7 +185,7 @@ const jog = (nameOrIdx, dir, dist) => {
   const cmdBuf  = new ArrayBuffer(5);       
   const cmdView = new DataView(cmdBuf);
   cmdView.setUint16(0, opcode.jog + (dir << 12) + dist);
-  return i2c.cmd(motor.i2cAddr, cmdBuf, 2);
+  return i2c.write(motor.i2cAddr, cmdBuf, 2);
 }
 
 const errString = (code) => {
@@ -276,7 +276,7 @@ const getStatus = async (nameOrIdx) => {
 const getTestPos  = async (nameOrIdx) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   // make sure these are adjacent in I2C queue
-  const promise1 = i2c.cmd(motor.i2cAddr, Buffer.from([opcode.getTestPos]));
+  const promise1 = i2c.write(motor.i2cAddr, Buffer.from([opcode.getTestPos]));
   const promise2 = i2c.status(motor.i2cAddr);
   await promise1;
   const recvBuf = await promise2;
@@ -290,7 +290,7 @@ const getTestPos  = async (nameOrIdx) => {
 const getVacSensor  = async () => {
   const motor = motors[0];
   // make sure these are adjacent in I2C queue
-  const promise1 = i2c.cmd(motor.i2cAddr, Buffer.from([opcode.getVacSens]));
+  const promise1 = i2c.write(motor.i2cAddr, Buffer.from([opcode.getVacSens]));
   const promise2 = i2c.status(motor.i2cAddr);
   await promise1;
   const recvBuf = await promise2;

@@ -52,7 +52,7 @@ exports.clrQueue = () => {
   while(queue.pop());
 }
 
-exports.cmd = (addr, buf, len) => {
+exports.write = (addr, buf, len) => {
   // console.log({addr, buf, len});
   if(typeof buf == 'number') buf = [buf];
   buf = Buffer.from(buf);
@@ -63,7 +63,7 @@ exports.cmd = (addr, buf, len) => {
   });
 }
 
-exports.status = (addr) => {
+exports.read = (addr) => {
   return new Promise((resolve, reject) => {
     queue.push({ addr, resolve, reject });
     chkQueue();

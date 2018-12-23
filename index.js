@@ -16,6 +16,6 @@
 
 console.log('p3 server started');
 
-// require('./test');
+require('./test');
 
-require('./websocket');
+// require('./websocket');
