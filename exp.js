@@ -11,45 +11,59 @@ const outputReg = 1;
 const polInvReg = 2;
 const trisReg   = 3;
 
-const trisVal    = 0x01;  // sw is only input
-const lightsMask = 0xf0;  // cam lights leds (nesw)
-const wifiMask   = 0x08   // green wifi led
-const motMask    = 0x06;  // red/green motor led
+const swMask     = 0x80;  // sw is only input
+const motMask    = 0xc0;  // red/green motor led
+const wifiMask   = 0x10   // green wifi led
+const lightsMask = 0x0f;  // cam lights leds (nesw)
 
-const lightsOfs  = 4;     // rightmost light bit (d4)
-const wifiOfs    = 3;     // rightmost wifi bit (d3)
-const motOfs     = 1;     // rightmost light bit (d1)
+const lightsOfs  = 0;     // rightmost light bit (d0)
+const wifiOfs    = 4;     // rightmost wifi bit  (d4)
+const motOfs     = 5;     // rightmost motor bit (d5)
 
 // mirror of output reg;
 let curOutReg = 0;
 
+let lastSwVal = curSwVal = lastCbSwVal = null;
+
 let swCallbacks = [];
-let curSwVal    = null;
-let lastSwVal   = null;
-let debounceHistory = [];
+let forceCallback = true;
 
-let forceReturn = true;
-
-const cmd = async (reg, data) =>
-  await i2c.write(i2cAddr, [reg, data]);
-
-const init = async () => {
+const get = async (reg) => {
   try {
-    await cmd(trisReg, trisVal);
-    await cmd(polInvReg, 0);
+    // make sure these are adjacent in I2C queue
+    const promise1 = i2c.write(i2cAddr, reg);
+    const promise2 = i2c.read(i2cAddr);
+    await promise1;
+    const newVal = (await promise2)[0];
+    // console.log('get reg:', reg, 'val:', newVal);
+    return newVal;
   }
   catch(e) {
-    console.log('exp init error', e);
+    console.log('exp get error', reg,  e);
   }
 }
 
-const set = async (data) => {
+const set = async (reg, data) => {
   try {
-    await cmd(outputReg, data);;
-    curOutReg = data;
+    await i2c.write(i2cAddr, [reg, data]);
+    if(reg == outputReg) curOutReg = data;
   }
   catch(e) {
-    console.log('exp set error', e);
+    console.log('exp set error', {reg, data}, e);
+  }
+}
+
+const init = async () => {
+  try {
+    await set(trisReg, swMask);
+    await set(polInvReg, 0);
+    const treg = await get(trisReg);
+    const preg = await get(polInvReg);
+    if(treg != swMask || preg != 0)
+      throw new Error('exp init reg check failed:', {swMask, treg, preg});
+  }
+  catch(e) {
+    console.log('exp init error', e);
   }
 }
 
@@ -59,17 +73,11 @@ const readSw = async () => {
     const promise1 = i2c.write(i2cAddr, inputReg);
     const promise2 = i2c.read(i2cAddr);
     await promise1;
-    const newVal = !!((await promise2) & trisVal);
-    let allEqNew = true;
-    for(let v of debounceHistory) {
-      if(v !== newVal) {
-        allEqNew = false;
-        break;
-      }
-    }
-    debounceHistory.push(newVal);
-    if (debounceHistory.length > 3) debounceHistory.shift();
-    if(allEqNew) curSwVal = newVal;
+    const newVal = ((await promise2)[0] & swMask);
+    // console.log('readSw:', newVal);
+    let newEq = (lastSwVal === newVal);
+    lastSwVal = newVal;
+    if(newEq) curSwVal = newVal;
     return curSwVal;
   }
   catch(e) {
@@ -78,36 +86,39 @@ const readSw = async () => {
 }
 
 const setLights = async (lights) => {
-  set((curval & ~lightsMask) | (lights << lightsOfs));
+  set(outputReg,
+    (curOutReg & ~lightsMask) | (lightsMask & (~lights << lightsOfs)));
 }
 
 const setWifiLed = async (on) => {
-  set((curval & ~wifiMask) | (on << wifiOfs));
+  set(outputReg,
+    (curOutReg & ~wifiMask) | (wifiMask & (~on << wifiOfs)));
 }
 
-const setMotLed = async (on, grnNotRed) => {
-  set( (curval & ~motMask) | (on ? ((grnNotRed ? 2 : 1) << motOfs) : 0));
+const setMotorLed = async (on, grnNotRed) => {
+  set(outputReg,
+    (curOutReg & ~motMask) | (on ? ((grnNotRed ? 1 : 2) << motOfs) : 0) );
 }
 
 const swOn = () => curSwVal;
 
 const onSwChg = (cb) => { 
   swCallbacks.push(cb);
-  forceReturn = true;
+  forceCallback = true;
 }
 
-const chkSw = async () => {
-  const newVal = await readSw();
-  if(forceReturn || newVal !== lastSwVal) {
-    lastSwVal = newVal;
+const chkForCallback = async () => {
+  await readSw();
+  if(forceCallback || curSwVal !== lastCbSwVal) {
+    lastCbSwVal = curSwVal;
     for(let cb of swCallbacks) {
       cb.call(null, curSwVal);
     }
   }
-  forceReturn = false;
+  forceCallback = false;
 };
-chkSw();
+chkForCallback();
 
-setInterval( chkSw, 100 );
+setInterval( chkForCallback, 100 );
 
-module.exports = {init, swOn, onSwChg, setLights, setWifiLed, setMotLed};
+module.exports = {init, setLights, setWifiLed, setMotorLed, swOn, onSwChg};
