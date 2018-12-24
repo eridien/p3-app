@@ -21,7 +21,7 @@ const wifiOfs    = 4;     // rightmost wifi bit  (d4)
 const motOfs     = 5;     // rightmost motor bit (d5)
 
 // mirror of output reg;
-let curOutReg = 0;
+let curOutRegVal = 0;
 
 let lastSwVal = curSwVal = lastCbSwVal = null;
 
@@ -46,7 +46,13 @@ const get = async (reg) => {
 const set = async (reg, data) => {
   try {
     await i2c.write(i2cAddr, [reg, data]);
-    if(reg == outputReg) curOutReg = data;
+    if(reg == outputReg) curOutRegVal = data;
+    // console.log('exp set:', {reg, data, curOutRegVal});
+    const chkVal = await get(reg);
+    if(chkVal != data) {
+      console.log('exp set readback failed:', {reg, data, chkVal, curOutRegVal});
+      throw new Error('exp set readback failed');
+    }
   }
   catch(e) {
     console.log('exp set error', {reg, data}, e);
@@ -85,20 +91,17 @@ const readSw = async () => {
   }
 }
 
-const setLights = async (lights) => {
-  set(outputReg,
-    (curOutReg & ~lightsMask) | (lightsMask & (~lights << lightsOfs)));
-}
+const setLights = async (lights) =>
+  set(outputReg, (curOutRegVal & ~lightsMask) | 
+       (lightsMask & (~lights << lightsOfs)));
 
-const setWifiLed = async (on) => {
-  set(outputReg,
-    (curOutReg & ~wifiMask) | (wifiMask & (~on << wifiOfs)));
-}
+const setWifiLed = async (on) =>
+  set(outputReg, (curOutRegVal & ~wifiMask) | 
+        (wifiMask & (~on << wifiOfs)));
 
-const setMotorLed = async (on, grnNotRed) => {
-  set(outputReg,
-    (curOutReg & ~motMask) | (on ? ((grnNotRed ? 1 : 2) << motOfs) : 0) );
-}
+const setMotorLed = async (on, grnNotRed) => 
+  set(outputReg, (curOutRegVal & ~motMask) | 
+        (on ? (grnNotRed ? (2 << motOfs) : (1 << motOfs)) : 0) );
 
 const swOn = () => curSwVal;
 

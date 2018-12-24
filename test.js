@@ -89,7 +89,7 @@ const sleep = require('util').promisify(setTimeout);
 (async () => {
   await exp.init();
   await exp.setWifiLed(true);
-  await exp.setMotorLed(true, true);
+  await exp.setMotorLed(true, false);
   await exp.setLights(0x0f);
   exp.onSwChg( (on) => console.log('switch', (on ? 'on' : 'off')) );
 })();
