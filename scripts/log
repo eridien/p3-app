@@ -1,0 +1,1 @@
+tail -fn 1000 /root/p3-srvr/log

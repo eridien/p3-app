@@ -5,67 +5,41 @@
 
   Each MCU is an I2C slave.  Each motor in each MCU has its own I2C address.
   Each motor state is independent (except for error which stops entire mcu).
-  The LEDS also have their own slave addr.
-
-  At the time of this writing the controller code can be built for:
-      One bipolar motor     (define BM and B1) (PIC16F15345)
-      Five bipolar motors   (define BM and B5) (PIC24F16KM202)
-      Three unipolar motors (define U3)        (PIC24F16KM202)
-
-  The motors have code letters (name) used in many places
-  // B1
-  { name: 'Y', i2cAddr: 0x08, mcu:B1, descr: 'Y-Axis'   },
-  // B5
-  { name: 'R', i2cAddr: 0x10, mcu:B5, descr: 'Rotation' },
-  { name: 'E', i2cAddr: 0x11, mcu:B5, descr: 'Extruder' },
-  { name: 'X', i2cAddr: 0x12, mcu:B5, descr: 'X-Axis'   },
-  { name: 'F', i2cAddr: 0x13, mcu:B5, descr: 'Focus'    },
-  { name: 'Z', i2cAddr: 0x14, mcu:B5, descr: 'Z-Axis'   }, 
-  // U3
-  { name: 'A', i2cAddr: 0x18, mcu:U3, descr: 'Tool-A'   },
-  { name: 'B', i2cAddr: 0x19, mcu:U3, descr: 'Tool-B'   },
-  { name: 'P', i2cAddr: 0x1a, mcu:U3, descr: 'Paster'   },
+  There is also an aux output pin.  (fan and buzzer in P3)
+  The MCU is coded for a PIC24F16KM202, other 16-bit mcus may work).
+  There are 4 bipolar motors called A,B,C,D.
+  There are 3 limit switch inputs called 1,2,3.
+  Each limit switch can be mapped to a motor at run-time.
 
   The MCU controller has a specific unusual meaning for a "step".
-  For bipolar it is a 1/8 micro-step and for unipolar it is one of four phases.
-  This makes bipolar numbers close to unipolar and lets things fit in 16 bits.
+  It is a 1/8 micro-step which lets distance/speeds fit in 16 bits.
 
-  If using a 20-tooth GT2 pulley, then one step is 1/40 mm for bipolar
-  and 1/50 mm for unipolar motor (28BYJ-48)
-
-    for bipolar: (typical 200 step motor and 20-tooth GT2 pulley)
+  If using a 20-tooth GT2 pulley, then one step is 1/40 mm.
         steps/rev:        1600
         dist/rev:           40 mm
         dist/step         1/40 mm
         max distance:      800 mm  (max step count: 32,767)
 
-    for unipolar:  (geared 28BYJ-48 motor and 20-tooth GT2 pulley)
-        steps/rev:        2048
-        dist/rev:           40 mm
-        dist/step         1/50 mm
-        max distance:      640 mm  ((max step count: 32,767)
-        max speed         1000 steps/sec (2 secs/rev, no torque) (measured)
-
   all speed is in steps/sec
   accel is 0..7: none, 4000, 8000, 20000, 40000, 80000, 200000, 400000 steps/sec/sec
   for 1/40 mm steps: none, 100, 200, 500, 1000, 2000, 5000, 10000 mm/sec/sec
   
-  Any I2C write to MCU is a command.  Any read returns a 4-byte status.
-  all commands are started immediately even when motor is busy (moving, homing, etc.)
-  if needed, the host can check for finished by polling busy-bit in state
-  no commands are buffered like G-Code commands
-  commands can be linked to async operations such as clicking on a webpage
-  changed settings take effect immediately even when motor is busy
+  Any I2C write to MCU is a command.  Any read returns a 3-byte status.
+  All commands are started immediately even when motor is busy (moving, homing, etc.)
+  If needed, the host can check for finished by polling busy-bit in state
+  No commands are buffered like G-Code commands
+  Commands can be linked to async operations such as clicking on a webpage
+  Changed settings take effect immediately even when motor is busy
 
   -- one-byte commands --
-  0001 0000  home       start homing
+  0001 0000  home       start homing (or fake home if no limit switch)
   0001 0001  test       next read position is end position of homing (test pos)
   0001 0010  stop       soft stop, decelerates, no reset
-  0001 0011  stopRst,   decelerates and then resets
+  0001 0011  stopRst    decelerates and then resets
   0001 0100  reset      hard stop (power down motor with immediate reset)
   0001 0101  motorOn    (power up motor by removing reset)
   0001 0110  fakeHome   set curpos to home pos value setting and turn motor on (fake homing)
-  0001 0111  vacuum     next read position is actually vacuum (ADC in MCU B1)
+  0000 001x  setAux     set aux ouput pin to x (one bit per mcu)
 
   -- 2-byte move command --
   1aaa aaaa    top 7 bits of target position
@@ -87,7 +61,7 @@
   001d ssss    d: direction  
     ssss ssss  s: number of steps
 
-  -- 3-byte to 21-byte settings command --
+  -- 3-byte to 23-byte settings command --
   write may be short, only setting first entries
   0001 1111  load settings, all are two-byte, big-endian, 16-bit values
     acceleration rate table index 0..7, 0 is off
@@ -98,55 +72,41 @@
     homing back-up speed
     home offset distance (final home distance from switch)
     home pos value (set cur pos to this value after homing, usually 0)
-    limit switch control
-    backlash distance
+    limit switch control   (see below)
+    backlash distance    
     mcuClock;   // period of clock in usecs  (motor 0 applies to entire mcu)
 
-  limit sw control byte format for settings command above
-  zero-byte is normal behavior
-  00ssl00
-    ss  start dir: 0: rev, 2: limit sw, 3: not limit sw
-     l  switch pin active voltage, 0: lo,  1: hi
+  limit sw control word format for settings command above
+  0000 0000 00ss 000p
+    ss: limit switch number, 0 is none
+     p:  switch polarity, 0: active voltage low,  1: high
 
-  limit sw control handles limit switch in middle of travel, not on an end
-  start-dir values 2 and 3 allowing homing from either side of switch
-  ends on dir=1 side of switch no matter what side it started on
-
-  -- 1-byte LED command (only command to specific LED I2C addr)
-  aabb ccdd  each pair are 0-3 brightness for an LED (on/off only for now)
-
-  -- 4-byte status read --
-  this is the only read format on i2c -- always 4 bytes including cksum
-  Error code and error bit are cleared on status read, only on addressed motor
-    1) vccc eboh  state byte
+  -- 3-byte status read --
+  this is the only read format on i2c
+  Error code is cleared on status read
+    1) veee sboh  state byte
         v: version (1-bit)
-      ccc: error code (see below) (code only set on motor causing error)
-        e: error bit              (bit set on all motors in mcu on every error)
+      eee: error code (see below)
+        s: special status returned in bytes 2 and 3
         b: busy     (homing, moving, or stopping)
         o: motor on (not in reset)
         h: homed    (motor has been homed since last reset)
-    2) aaaa aaaa  signed motor position, top 8 bits (or test pos or vacuum)
+    2) aaaa aaaa  signed motor position, top 8 bits (or special value)
     3) aaaa aaaa  followed by bottom 8 bits
-    4) cccc cccc  8-bit cksum, sum of first 3 bytes
 
   Error codes for state byte above 
     MOTOR_FAULT_ERROR   0x10  missing, over-heated, or over-current driver chip
-    I2C_OVERFLOW_ERROR  0x20  i2c byte received before last taken
+    OVERFLOW_ERROR      0x20  data received before last used
     CMD_DATA_ERROR      0x30  command format incorrect
-    CMD_NOT_DONE_ERROR  0x40  new command arrived before old cmd finished
-    STEP_NOT_DONE_ERROR 0x50  step rate too fast for MCU
-    BOUNDS_ERROR        0x60  position < 0 or > max setting when moving
-    NOT_HOMED_ERROR     0x70  attempt to do a move when not homed yet
+    STEP_NOT_DONE_ERROR 0x40  step rate too fast for MCU
+    BOUNDS_ERROR        0x50  position < 0 or > max setting when moving
+    NO_SETTINGS         0x60  no settings
+    NOT_HOMED           0x70  move cmd when not homed
 
   motor position is stored for testing when homing first closes limit switch
   this allows testing to make sure no steps are missed when doing move/home
   Command 0x11 tells next status read to return this test position
-  This status read will have a magic state value of 0x04 (normally impossible)
+  This status read will have the status byte value of 0x08
 
   position values in commands must be positive, top bit is zero
   position returned in status is signed and may be negative (e.g. when homing)
-
-  For MCU B1 only ...
-  Command 0x17 tells next status to return the ADC value for the vacuum sensor
-  This status read will have a magic state value of 0x05 (normally impossible)
-

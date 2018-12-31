@@ -1,28 +1,23 @@
 
-
 const util = require('util');
 const i2c  = require('./i2c');
 
 const motors = [
-  // B1
-  // { name: 'Y', i2cAddr: 0x08, mcu:1, hasLimit: true, descr: 'Y-Axis' },
-  // // B5
-  // { name: 'R', i2cAddr: 0x10, mcu:2, hasLimit: true,  descr: 'Rotation' },
-  { name: 'E', i2cAddr: 0x11, mcu:2, hasLimit: true, descr: 'Extruder' },
-  // { name: 'X', i2cAddr: 0x12, mcu:2, hasLimit: true,  descr: 'X-Axis' },
-  { name: 'F', i2cAddr: 0x13, mcu:2, hasLimit: false, descr: 'Focus' },
-  // { name: 'Z', i2cAddr: 0x14, mcu:2, hasLimit: false,  descr: 'Zoom' },
-  // // U3
-  // { name: 'A', i2cAddr: 0x18, mcu:3, hasLimit: true,  descr: 'Tool-A' },
-  // { name: 'B', i2cAddr: 0x19, mcu:3, hasLimit: true,  descr: 'Tool-B' },
-  // { name: 'P', i2cAddr: 0x1a, mcu:3, hasLimit: false, descr: 'Paste' },
+  // MCU A
+  { name: 'X', i2cAddr: 0x04, mcu:0, limitSw: 0x10, descr: 'X-Axis' },
+  { name: 'Y', i2cAddr: 0x05, mcu:0, limitSw: 0x20, descr: 'Y-Axis' },
+  { name: 'H', i2cAddr: 0x06, mcu:0, limitSw: 0x30, descr: 'Height' },
+  { name: 'E', i2cAddr: 0x07, mcu:0, limitSw:    0, descr: 'Extruder' },
+  // MCU B
+  { name: 'R', i2cAddr: 0x08, mcu:1, limitSw: 0x10, descr: 'Rotation' },
+  { name: 'Z', i2cAddr: 0x09, mcu:1, limitSw: 0x30, descr: 'Zoom' },
+  { name: 'F', i2cAddr: 0x0a, mcu:1, limitSw:    0, descr: 'Focus' },
+  { name: 'P', i2cAddr: 0x0b, mcu:1, limitSw: 0x20, descr: 'Pincher' },
 ];
 
-const UMCU = 3;
-const LED_ADDR = 0x1b; // one greater than max addr in U3
+const mcuI2cAddr = [0x04, 0x08];
 
-// settings order must match mcu
-const defBipolarSettings = [
+const defSettings = [
   // accel is 0..7: none, 4000, 8000, 20000, 40000, 80000, 200000, 400000 steps/sec/sec
   // for 1/40 mm steps: none, 100, 200, 500, 1000, 2000, 5000, 10000 mm/sec/sec
   ['accel',             4], // acceleration code (40000 steps/sec/sec, 1000 mm/sec/sec)
@@ -31,36 +26,16 @@ const defBipolarSettings = [
   ['maxPos',        32000], // max pos is 800 mm
   ['homeSpeed',      1000], // homing speed (25 mm/sec)
   ['homeBkupSpeed',    60], // homing back-up speed (1.5 mm/sec)
-  ['homeOfs',          40], // home offset distance, 1 mm
+  ['homeOfs',          20], // home offset distance, 0.5 mm
   ['homePosVal',        0], // home pos value, set pos to this after homing
-  ['limitSw',           0], // limit switch control
+  ['limitSw',           0], // limit switch control (set from motor table)
   ['backlashWid',       0], // width of backslash dead interval
-  ['backlashSpeed',  2400], // speed when skipping over backslash dead interval
   ['clkPeriod',        30], // period of clock in usecs (applies to all motors in mcu)
                             // lower value reduces stepping jitter, but may cause errors
 ];
 
-// setting names must match
-const defUnipolarSettings = [
-  // accel is 0..7: none, 4000, 8000, 20000, 40000, 80000, 200000, 400000 steps/sec/sec
-  // for 1/40 mm steps: none, 100, 200, 500, 1000, 2000, 5000, 10000 mm/sec/sec
-  ['accel',             4], // acceleration code (40000 steps/sec/sec, 1000 mm/sec/sec)
-  ['speed',           400], // default speed, 50 mm/sec
-  ['jerk',            100], // start/stop pull-in speed -- 30 mm/sec
-  ['maxPos',        32000], // max pos is 800 mm
-  ['homeSpeed',       200], // homing speed (25 mm/sec)
-  ['homeBkupSpeed',    60], // homing back-up speed (1.5 mm/sec)
-  ['homeOfs',          25], // home offset distance, 0.5 mm
-  ['homePosVal',        0], // home pos value, set pos to this after homing
-  ['limitSw',           0], // limit switch control
-  ['backlashWid',       0], // width of backslash dead interval
-  ['backlashSpeed',   200], // speed when skipping over backslash dead interval
-  ['clkPeriod',        30], // period of clock in usecs (applies to all motors in mcu)
-                          // lower value reduces stepping jitter, but may cause errors
-];
-
 const settingsKeys = [];
-defBipolarSettings.forEach( (keyVal) => {
+defSettings.forEach( (keyVal) => {
   settingsKeys.push(keyVal[0]);
 });
 
@@ -75,22 +50,17 @@ const motorByName = {};
 motors.forEach( (motor, idx) => {
   motor.idx       = idx;
   motor.settings  = {};
-  if(motor.mcu < UMCU) {
-    defBipolarSettings.forEach( (keyVal) => {
-      motor.settings[keyVal[0]] = keyVal[1];
-    });
-  }
-  else {  
-    defUnipolarSettings.forEach( (keyVal) => {
-      motor.settings[keyVal[0]] = keyVal[1];
-    });
-  };
+  defSettings.forEach( (keyVal) => {
+    motor.settings[keyVal[0]] = keyVal[1];
+  });
+  motor.settings.limitSw = motor.limitSw;
   motorByName[motor.name] = motor;
 });
 
 const opcode = {
   move:         0x8000,
   jog:          0x2000,
+  auxOnOff:       0x02,
   speedMove:      0x40,
   accelSpeedMove: 0x08,
   startHoming:    0x10,
@@ -100,18 +70,12 @@ const opcode = {
   reset:          0x14,
   motorOn:        0x15,
   fakeHome:       0x16,
-  getVacSens:     0x17, // read vacuum sensor ADC (mcu 1 only)
   settings:       0x1f,
 };
 
 const motorByNameOrIdx = (nameOrIdx) =>
   (typeof nameOrIdx == 'string') ? motorByName[nameOrIdx] : motors[nameOrIdx];
 
-const mmToSteps = (nameOrIdx, mm) => {
-  const mcu = motorByNameOrIdx(nameOrIdx).mcu;
-  return mm * (mcu < 2 ? 40 : 50);
-}
-  
 const sendSettings = (nameOrIdx, settings) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   const cmdBuf = new ArrayBuffer(1 + settingsKeys.length * 2);
@@ -148,10 +112,6 @@ const stopRst     = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x13) };
 const reset       = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x14) };
 const motorOn     = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x15) };
 const fakeHome    = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x16) };
-
-const setLeds = (led1, led2, led3, led4) => {
-  return sendOneByteCmd(LED_ADDR, led1 << 6 | led2 << 4 | led3 << 2 | led4);
-}
 
 const move = (nameOrIdx, pos, speed, accel) => {
   if(accel === '') accel = 0;
@@ -192,12 +152,12 @@ const errString = (code) => {
   switch (code) {
     case 0: return "";
     case 1: return "motor fault";
-    case 2: return "i2c overflow";
+    case 2: return "receive overflow";
     case 3: return "bad command data";
-    case 4: return "command processing took too long";
-    case 5: return "speed too fast for MCU";
-    case 6: return "move out-of-bounds";
-    case 7: return "move cmd when not homed";
+    case 4: return "speed too fast for MCU";
+    case 5: return "move out-of-bounds";
+    case 6: return "no settings";
+    case 7: return "not homed";
   }
 }
 
@@ -207,7 +167,8 @@ const parseStatus = (motor, buf) => {
   if (pos > 32767) pos -= 65536;
   return {
     version:     stateByte >> 7,
-    name:        motor.name,
+    name:        motor.name, 
+    testVal: !!((stateByte & 0x08) >> 3),
     busy:    !!((stateByte & 0x04) >> 2),
     motorOn: !!((stateByte & 0x02) >> 1),
     homed:   !! (stateByte & 0x01),
@@ -215,48 +176,19 @@ const parseStatus = (motor, buf) => {
   };
 }
 
-// find status from motor that reported error
-// also clears all errors in mcu
-const findErrMotor = async (mcu) => {
-  const motorsInMcu = [];
-  const promiseArr = [];
-  motors.forEach( (motor, idx) => {
-    if(motor.mcu === mcu) {
-      motorsInMcu.push(motor);
-      promiseArr.push(i2c.status(motor.i2cAddr));
-    }
-  });
-  const resArr = await Promise.all(promiseArr);
-  resArr.forEach( (buf, idx) => { 
-    console.debug('resArr', resArr);
-    if(buf[0] & 0x70) return {buf, mot: motorsInMcu[idx]};
-  });
-  return {};
-}
-
 const getStatus = async (nameOrIdx) => {
   const motor = motorByNameOrIdx(nameOrIdx);
-  const recvBuf = await i2c.status(motor.i2cAddr);
-  if (recvBuf[3] != ((recvBuf[0] + recvBuf[1] + recvBuf[2]) & 0xff)) {
-    throw new Error('status checksum error');
-  }
-  if(recvBuf[0] & 0x08) {
-    // some motor had an error
+  const recvBuf = await i2c.read(motor.i2cAddr);
+  if(recvBuf[0] & 0x70) {
+    // error
     let errBuf   = recvBuf;
     let errCode  = recvBuf[0] & 0x70;
     let errMotor = motor;
-    const {buf, mot} = await findErrMotor(motor.mcu);
-    if(buf) {
-      errBuf   = buf;
-      errCode  = buf[0] & 0x70;
-      errMotor = mot;
-    }
-    console.debug(buf);
     // // stop all pending i2c, reset all motors in all mcus
-    // i2c.clrQueue();
-    // const promiseArr = [];
-    // for(let idx = 0; idx < motors.length; idx++) promiseArr.push(reset(idx));
-    // await Promise.all(promiseArr);
+    i2c.clrQueue();
+    const promiseArr = [];
+    for(let idx = 0; idx < motors.length; idx++) promiseArr.push(reset(idx));
+    await Promise.all(promiseArr);
     const err = new Error();
     err.motor = errMotor;
     if(errCode) {
@@ -277,27 +209,18 @@ const getTestPos  = async (nameOrIdx) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   // make sure these are adjacent in I2C queue
   const promise1 = i2c.write(motor.i2cAddr, Buffer.from([opcode.getTestPos]));
-  const promise2 = i2c.status(motor.i2cAddr);
+  const promise2 = i2c.read(motor.i2cAddr);
   await promise1;
   const recvBuf = await promise2;
-  if(recvBuf[0] != 0x04) 
+  if(!(recvBuf[0] & 0x08)) 
     throw new Error('invalid state byte in getTestPos: ' + util.inspect(recvBuf));
   let pos = ((recvBuf[1] << 8) | recvBuf[2]);
   if (pos > 32767) pos -= 65536;
   return pos;
 }
 
-const getVacSensor  = async () => {
-  const motor = motors[0];
-  // make sure these are adjacent in I2C queue
-  const promise1 = i2c.write(motor.i2cAddr, Buffer.from([opcode.getVacSens]));
-  const promise2 = i2c.status(motor.i2cAddr);
-  await promise1;
-  const recvBuf = await promise2;
-  if(recvBuf[0] != 0x05) 
-    throw new Error('invalid state byte in getVacSensor: ' + util.inspect(recvBuf));
-  return ((recvBuf[1] << 8) | recvBuf[2]);
-}
+const fanOnOff    = (on) => i2c.write(mcuI2cAddr[0], auxOnOff + (on ? 1 : 0));
+const buzzerOnOff = (on) => i2c.write(mcuI2cAddr[1], auxOnOff + (on ? 1 : 0));
 
 const notBusy = async (nameOrIdxArr) => {
   if(!Array.isArray(nameOrIdxArr)) {
@@ -341,10 +264,10 @@ const rpc = async (msgObj) => {
       case 'stopRst':           return stopRst(...args);
       case 'reset':             return reset(...args);
       case 'motorOn':           return motorOn(...args);
-      case 'setLeds':           return setLeds(...args);
+      case 'fanOnOff':          return fanOnOff(...args);
+      case 'buzzerOnOff':       return buzzerOnOff(...args);
       case 'getStatus':         return getStatus(...args);
       case 'getTestPos':        return getTestPos(...args);
-      case 'getVacSensor':      return getVacSensor(...args);
       case 'notBusy':           return notBusy(...args);
       default: throw new Error('invalid motor function name: ' + func);
     } 
@@ -355,9 +278,9 @@ const rpc = async (msgObj) => {
 }
 
 module.exports = {
-motors, motorByNameOrIdx, initAllMotors, sendSettings, mmToSteps,
+motors, motorByNameOrIdx, initAllMotors, sendSettings,
   home, jog, fakeHome, move, 
-  stop, stopRst, reset, motorOn, setLeds,
-  getStatus, getTestPos, getVacSensor, notBusy, rpc
+  stop, stopRst, reset, motorOn, fanOnOff, buzzerOnOff,
+  getStatus, getTestPos, notBusy, rpc
 };
  

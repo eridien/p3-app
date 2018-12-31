@@ -79,7 +79,7 @@ const readSw = async () => {
     const promise1 = i2c.write(i2cAddr, inputReg);
     const promise2 = i2c.read(i2cAddr);
     await promise1;
-    const newVal = ((await promise2)[0] & swMask);
+    const newVal = !!((await promise2)[0] & swMask);
     // console.log('readSw:', newVal);
     let newEq = (lastSwVal === newVal);
     lastSwVal = newVal;
@@ -110,7 +110,8 @@ const onSwChg = (cb) => {
   forceCallback = true;
 }
 
-const chkForCallback = async () => {
+// 2 to 4 ms per chk, 10% of values were 11, max: 81
+const chkSw = async () => {
   await readSw();
   if(forceCallback || curSwVal !== lastCbSwVal) {
     lastCbSwVal = curSwVal;
@@ -120,8 +121,8 @@ const chkForCallback = async () => {
   }
   forceCallback = false;
 };
-chkForCallback();
+chkSw();
 
-setInterval( chkForCallback, 100 );
+setInterval( chkSw, 100 );
 
 module.exports = {init, setLights, setWifiLed, setMotorLed, swOn, onSwChg};

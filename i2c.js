@@ -14,7 +14,7 @@ const I2CBUS = 3;
 const i2cbus = require('i2c-bus');
 const bus = i2cbus.open(I2CBUS, () => {});
 
-const queue = [];
+let queue = [];
 let qBusy = false;
 
 const chkQueue = () => {
@@ -33,8 +33,8 @@ const chkQueue = () => {
           });
       }
       else {
-        const buf = new Buffer(4);
-        bus.i2cRead(addr, 4, buf,
+        const buf = new Buffer(3);
+        bus.i2cRead(addr, 3, buf,
           err => {
             if (err) reject(Object.assign(err, {req}))
             else     resolve(buf);
@@ -48,12 +48,10 @@ const chkQueue = () => {
   doOne();
 }
 
-exports.clrQueue = () => {
-  while(queue.pop());
-}
+exports.clrQueue = () =>  (queue = []);
 
 exports.write = (addr, buf, len) => {
-  // console.log({addr, buf, len});
+  if(addr != 39) console.log('write:', {addr, buf, len});
   if(typeof buf == 'number') buf = [buf];
   buf = Buffer.from(buf);
   if(!len) len = buf.byteLength;
