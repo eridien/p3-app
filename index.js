@@ -14,32 +14,27 @@
   node --nolazy --no-warnings --inspect-brk=0.0.0.0:9229 index.js
 */
 
-console.log('p3 server started\n');
-
 const   exp = require('./expander');
-const test  = require('./test');
-const sleep = require('util').promisify(setTimeout);
+
+console.log('p3 server starting\n');
+
 (async () => {
   try {
     await exp.init();
-    await test.init();
     exp.onSwChg( async (on) => {
       if(on) {
-        let count = 0;
-        while(++count < 8) {
-          await exp.setWifiLed(count & 1);
-          await sleep(100);
-        }
-        await test.run();
+        await exp.setWifiLed(true);
       }
-      else {      
-        await test.stop();
+      else {     
+        await exp.setWifiLed(false); 
       }
     });
   }
   catch (e) {
-    console.log('index.js error:', e);
+    console.log('error starting:', e);
   };
 })();
+
+require('./test');
 
 // require('./websocket');

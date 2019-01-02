@@ -3,6 +3,5 @@ killall node
 rsync -av --exclude .git /root/dev/p3/p3-srvr/ /root/p3-srvr
 cp /root/dev/p3/p3-srvr/scripts/rel /root
 cp /root/dev/p3/p3-srvr/scripts/run /root
-cp /root/dev/p3/p3-srvr/scripts/stop /root
+cp /root/dev/p3/p3-srvr/scripts/k   /root
 cp /root/dev/p3/p3-srvr/scripts/log /root
-cp /root/dev/p3/p3-srvr/scripts/clr-log /root

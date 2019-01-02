@@ -1,1 +1,5 @@
-/root/.nvm/versions/node/v8.12.0/bin/node /root/p3-srvr/index.js >> /root/p3-srvr/log &
+killall node
+/root/.nvm/versions/node/v8.12.0/bin/node /root/dev/p3/p3-srvr/index.js >> /root/p3-srvr-log &
+rm -rf  /root/p3-srvr-log
+touch   /root/p3-srvr-log
+tail -f /root/p3-srvr-log &

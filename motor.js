@@ -63,13 +63,14 @@ const opcode = {
   auxOnOff:       0x02,
   speedMove:      0x40,
   accelSpeedMove: 0x08,
-  startHoming:    0x10,
+  home:           0x10,
   getTestPos:     0x11,
   softStop:       0x12,
   softStopRst:    0x13,
   reset:          0x14,
   motorOn:        0x15,
   fakeHome:       0x16,
+  reboot:         0x17,
   settings:       0x1f,
 };
 
@@ -106,12 +107,17 @@ const sendOneByteCmd = (nameOrIdx, cmdByte) => {
   return i2c.write(motor.i2cAddr, [cmdByte]);
 };
 
-const home        = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x10) };
-const stop        = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x12) };
-const stopRst     = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x13) };
-const reset       = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x14) };
-const motorOn     = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x15) };
-const fakeHome    = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, 0x16) };
+const home        = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, opcode.home) };
+const stop        = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, opcode.softStop) };
+const stopRst     = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, opcode.softStopRst) };
+const reset       = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, opcode.reset) };
+const motorOn     = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, opcode.motorOn) };
+const fakeHome    = (nameOrIdx) => { return sendOneByteCmd(nameOrIdx, opcode.fakeHome) };
+
+const reboot = async () => { 
+  await i2c.write(mcuI2cAddr[0], opcode.reboot);
+  await i2c.write(mcuI2cAddr[1], opcode.reboot);
+}
 
 const move = (nameOrIdx, pos, speed, accel) => {
   if(accel === '') accel = 0;
@@ -138,7 +144,6 @@ const move = (nameOrIdx, pos, speed, accel) => {
     return i2c.write(motor.i2cAddr, cmdBuf, 5);
   }
 }
-
 
 const jog = (nameOrIdx, dir, dist) => {
   const motor = motorByNameOrIdx(nameOrIdx);
@@ -219,8 +224,8 @@ const getTestPos  = async (nameOrIdx) => {
   return pos;
 }
 
-const fanOnOff    = (on) => i2c.write(mcuI2cAddr[0], auxOnOff + (on ? 1 : 0));
-const buzzerOnOff = (on) => i2c.write(mcuI2cAddr[1], auxOnOff + (on ? 1 : 0));
+const fanOnOff    = (on) => i2c.write(mcuI2cAddr[0], opcode.auxOnOff + (on ? 1 : 0));
+const buzzerOnOff = (on) => i2c.write(mcuI2cAddr[1], opcode.auxOnOff + (on ? 1 : 0));
 
 const notBusy = async (nameOrIdxArr) => {
   if(!Array.isArray(nameOrIdxArr)) {
@@ -280,7 +285,7 @@ const rpc = async (msgObj) => {
 module.exports = {
 motors, motorByNameOrIdx, initAllMotors, sendSettings,
   home, jog, fakeHome, move, 
-  stop, stopRst, reset, motorOn, fanOnOff, buzzerOnOff,
+  stop, stopRst, reset, motorOn, fanOnOff, buzzerOnOff, reboot,
   getStatus, getTestPos, notBusy, rpc
 };
  

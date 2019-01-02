@@ -11,7 +11,7 @@ const outputReg = 1;
 const polInvReg = 2;
 const trisReg   = 3;
 
-const swMask     = 0x80;  // sw is only input
+const swMask     = 0x80;  // switch is only input
 const motMask    = 0xc0;  // red/green motor led
 const wifiMask   = 0x10   // green wifi led
 const lightsMask = 0x0f;  // cam lights leds (nesw)
@@ -35,7 +35,6 @@ const get = async (reg) => {
     const promise2 = i2c.read(i2cAddr);
     await promise1;
     const newVal = (await promise2)[0];
-    // console.log('get reg:', reg, 'val:', newVal);
     return newVal;
   }
   catch(e) {
@@ -47,12 +46,6 @@ const set = async (reg, data) => {
   try {
     await i2c.write(i2cAddr, [reg, data]);
     if(reg == outputReg) curOutRegVal = data;
-    // console.log('exp set:', {reg, data, curOutRegVal});
-    const chkVal = await get(reg);
-    if(chkVal != data) {
-      console.log('exp set readback failed:', {reg, data, chkVal, curOutRegVal});
-      throw new Error('exp set readback failed');
-    }
   }
   catch(e) {
     console.log('exp set error', {reg, data}, e);
