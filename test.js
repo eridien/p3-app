@@ -1,6 +1,5 @@
 
 const sleep = require('util').promisify(setTimeout);
-const exp = require('./expander');
 
 // const c = require('./camera');
 // 
@@ -48,43 +47,53 @@ const exp = require('./expander');
 //   }
 // }
 
+// const init = async () => {
+//   try {
+//     exp.onSwChg( async (on) => {
+//       if(on) {
+//         try {
+//           let i = 1;
+//           while(true) {
+//             await exp.setLights(i);
+//             i << 1;
+//             if(i > 8) i = 1;
+//             await sleep(500);
+//             if(!exp.swOn())
+//               return;
+//           }
+//         }
+//         catch (e) {
+//           console.log('exp test error:', e);
+//         };
+//       }
+//       else {      
+//         await sleep(1000);
+//         await exp.setLights(0x0f);
+//       }
+//     });
+//   }
+//   catch (e) {
+//     console.log('test error:', e);
+//   };
+// }
+
+const exp = require('./expander');
+const cam = require('./camera');
+
 const init = async () => {
-}
-
-const run = async () => {
   try {
-    for(let i=0;;i++) {
-      await exp.setLights(i);
-      await sleep(200);
-      if(!exp.swOn())
-        return;
-    }
-  }
-  catch (e) {
-    console.log('exp test error:', e);
-  };
-}
-
-const stop = async () => {
-  await sleep(1000);
-  await exp.setLights(0x0f);
-}
-
-(async () => {
-  try {
-    init();
     exp.onSwChg( async (on) => {
       if(on) {
-        await run();
+        cam.focus();
       }
       else {      
-        await stop();
+        cam.focus();
       }
     });
   }
   catch (e) {
     console.log('test error:', e);
   };
-})();
+}
 
-
+module.exports = {init};

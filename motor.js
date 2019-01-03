@@ -4,15 +4,15 @@ const i2c  = require('./i2c');
 
 const motors = [
   // MCU A
-  { name: 'X', i2cAddr: 0x04, mcu:0, limitSw: 0x10, descr: 'X-Axis' },
-  { name: 'Y', i2cAddr: 0x05, mcu:0, limitSw: 0x20, descr: 'Y-Axis' },
-  { name: 'H', i2cAddr: 0x06, mcu:0, limitSw: 0x30, descr: 'Height' },
-  { name: 'E', i2cAddr: 0x07, mcu:0, limitSw:    0, descr: 'Extruder' },
+  { name: 'X', i2cAddr: 0x04, mcu:0, limitSw: 0x10, backlashWid:0, descr: 'X-Axis' },
+  { name: 'Y', i2cAddr: 0x05, mcu:0, limitSw: 0x20, backlashWid:0, descr: 'Y-Axis' },
+  { name: 'H', i2cAddr: 0x06, mcu:0, limitSw: 0x30, backlashWid:0, descr: 'Height' },
+  { name: 'E', i2cAddr: 0x07, mcu:0, limitSw:    0, backlashWid:0, descr: 'Extruder' },
   // MCU B
-  { name: 'R', i2cAddr: 0x08, mcu:1, limitSw: 0x10, descr: 'Rotation' },
-  { name: 'Z', i2cAddr: 0x09, mcu:1, limitSw: 0x30, descr: 'Zoom' },
-  { name: 'F', i2cAddr: 0x0a, mcu:1, limitSw:    0, descr: 'Focus' },
-  { name: 'P', i2cAddr: 0x0b, mcu:1, limitSw: 0x20, descr: 'Pincher' },
+  { name: 'R', i2cAddr: 0x08, mcu:1, limitSw: 0x10, backlashWid:0, descr: 'Rotation' },
+  { name: 'Z', i2cAddr: 0x09, mcu:1, limitSw: 0x30, backlashWid:0, descr: 'Zoom' },
+  { name: 'F', i2cAddr: 0x0a, mcu:1, limitSw:    0, backlashWid:1, descr: 'Focus' },
+  { name: 'P', i2cAddr: 0x0b, mcu:1, limitSw: 0x20, backlashWid:0, descr: 'Pincher' },
 ];
 
 const mcuI2cAddr = [0x04, 0x08];
@@ -53,9 +53,12 @@ motors.forEach( (motor, idx) => {
   defSettings.forEach( (keyVal) => {
     motor.settings[keyVal[0]] = keyVal[1];
   });
-  motor.settings.limitSw = motor.limitSw;
+  motor.settings.limitSw     = motor.limitSw;
+  motor.settings.backlashWid = motor.backlashWid;
   motorByName[motor.name] = motor;
 });
+
+console.log(motors[6]);
 
 const opcode = {
   move:         0x8000,
@@ -244,10 +247,10 @@ const notBusy = async (nameOrIdxArr) => {
   }
 }
 
-const initAllMotors = async () => {
+const init = async () => {
   const promiseArr = [];
   motors.forEach( (motor) => {
-    promiseArr.push(getStatus(motor.idx));
+    promiseArr.push(getStatus(motor.idx)); // clear any error
     promiseArr.push(sendSettings(motor.idx, motor.settings));
   });
   return Promise.all(promiseArr);
@@ -259,7 +262,7 @@ const rpc = async (msgObj) => {
     switch (func) {
       case 'motors':            return new Promise((res) => res(motors));
       case 'motorByNameOrIdx':  return motorByNameOrIdx(...args);
-      case 'initAllMotors':     return initAllMotors(...args);
+      case 'init':              return init(...args);
       case 'sendSettings':      return sendSettings(...args);
       case 'home':              return home(...args);
       case 'fakeHome':          return fakeHome(...args);
@@ -283,7 +286,7 @@ const rpc = async (msgObj) => {
 }
 
 module.exports = {
-motors, motorByNameOrIdx, initAllMotors, sendSettings,
+motors, motorByNameOrIdx, init, sendSettings,
   home, jog, fakeHome, move, 
   stop, stopRst, reset, motorOn, fanOnOff, buzzerOnOff, reboot,
   getStatus, getTestPos, notBusy, rpc

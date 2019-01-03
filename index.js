@@ -14,7 +14,7 @@
   node --nolazy --no-warnings --inspect-brk=0.0.0.0:9229 index.js
 */
 
-const   exp = require('./expander');
+const exp = require('./expander');
 
 console.log('p3 server starting\n');
 
@@ -29,12 +29,17 @@ console.log('p3 server starting\n');
         await exp.setWifiLed(false); 
       }
     });
+
+    // const tst = require('./test');
+    // tst.init();
+
+    const mot = require('./motor');
+    await mot.init();
+    const ws  = require('./websocket');
+    await ws.init();
+
   }
   catch (e) {
     console.log('error starting:', e);
   };
 })();
-
-require('./test');
-
-// require('./websocket');
