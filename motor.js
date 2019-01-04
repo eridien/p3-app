@@ -58,7 +58,7 @@ motors.forEach( (motor, idx) => {
   motorByName[motor.name] = motor;
 });
 
-console.log(motors[6]);
+// console.log(motors[6]);
 
 const opcode = {
   move:         0x8000,

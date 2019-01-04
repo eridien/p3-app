@@ -79,15 +79,17 @@ const sleep = require('util').promisify(setTimeout);
 
 const exp = require('./expander');
 const cam = require('./camera');
+let wasOn = false;
 
 const init = async () => {
   try {
     exp.onSwChg( async (on) => {
       if(on) {
         cam.focus();
+        wasOn = true;
       }
-      else {      
-        cam.focus();
+      else { 
+        if(wasOn) cam.reset();
       }
     });
   }
