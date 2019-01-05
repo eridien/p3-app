@@ -4,15 +4,15 @@ const i2c  = require('./i2c');
 
 const motors = [
   // MCU A
-  { name: 'X', i2cAddr: 0x04, mcu:0, limitSw: 0x10, backlashWid:0, descr: 'X-Axis' },
-  { name: 'Y', i2cAddr: 0x05, mcu:0, limitSw: 0x20, backlashWid:0, descr: 'Y-Axis' },
-  { name: 'H', i2cAddr: 0x06, mcu:0, limitSw: 0x30, backlashWid:0, descr: 'Height' },
-  { name: 'E', i2cAddr: 0x07, mcu:0, limitSw:    0, backlashWid:0, descr: 'Extruder' },
-  // MCU B
-  { name: 'R', i2cAddr: 0x08, mcu:1, limitSw: 0x10, backlashWid:0, descr: 'Rotation' },
-  { name: 'Z', i2cAddr: 0x09, mcu:1, limitSw: 0x30, backlashWid:0, descr: 'Zoom' },
-  { name: 'F', i2cAddr: 0x0a, mcu:1, limitSw:    0, backlashWid:1, descr: 'Focus' },
-  { name: 'P', i2cAddr: 0x0b, mcu:1, limitSw: 0x20, backlashWid:0, descr: 'Pincher' },
+  { name: 'X', i2cAddr: 0x04, mcu:0, limitSw: 0x10, backlashWid:0, homePosVal: 0, descr: 'X-Axis' },
+  { name: 'Y', i2cAddr: 0x05, mcu:0, limitSw: 0x20, backlashWid:0, homePosVal: 0, descr: 'Y-Axis' },
+  { name: 'H', i2cAddr: 0x06, mcu:0, limitSw: 0x30, backlashWid:0, homePosVal: 0, descr: 'Height' },
+  { name: 'E', i2cAddr: 0x07, mcu:0, limitSw:    0, backlashWid:0, homePosVal: 0, descr: 'Extruder' },
+  // MCU BhomePosVal: 0, 
+  { name: 'R', i2cAddr: 0x08, mcu:1, limitSw: 0x10, backlashWid:0, homePosVal: 0, descr: 'Rotation' },
+  { name: 'Z', i2cAddr: 0x09, mcu:1, limitSw: 0x30, backlashWid:0, homePosVal: 0, descr: 'Zoom' },
+  { name: 'F', i2cAddr: 0x0a, mcu:1, limitSw:    0, backlashWid:1, homePosVal: 32000, descr: 'Focus' },
+  { name: 'P', i2cAddr: 0x0b, mcu:1, limitSw: 0x20, backlashWid:0, homePosVal: 0, descr: 'Pincher' },
 ];
 
 const mcuI2cAddr = [0x04, 0x08];
@@ -23,6 +23,7 @@ const defSettings = [
   ['accel',             4], // acceleration code (40000 steps/sec/sec, 1000 mm/sec/sec)
   ['speed',          2000], // default speed, 50 mm/sec
   ['jerk',           1200], // start/stop pull-in speed -- 30 mm/sec
+  ['minPos',            0], // min pos
   ['maxPos',        32000], // max pos is 800 mm
   ['homeSpeed',      1000], // homing speed (25 mm/sec)
   ['homeBkupSpeed',    60], // homing back-up speed (1.5 mm/sec)
@@ -55,7 +56,8 @@ motors.forEach( (motor, idx) => {
   });
   motor.settings.limitSw     = motor.limitSw;
   motor.settings.backlashWid = motor.backlashWid;
-  motorByName[motor.name] = motor;
+  motor.settings.homePosVal  = motor.homePosVal;
+  motorByName[motor.name]    = motor;
 });
 
 // console.log(motors[6]);
@@ -66,8 +68,8 @@ const opcode = {
   auxOnOff:       0x02,
   speedMove:      0x40,
   accelSpeedMove: 0x08,
+  getTestPos:     0x04,
   home:           0x10,
-  getTestPos:     0x11,
   softStop:       0x12,
   softStopRst:    0x13,
   reset:          0x14,
@@ -91,7 +93,12 @@ const sendSettings = (nameOrIdx, settings) => {
     if (key in settings) {
       maxIdx = Math.max(maxIdx, idx);
       const val = settings[key];
-      wordsView.setUint16(idx*2, val);
+      if(val === null)
+        throw new Error('invalid setting in motor.sendSettings: ' +
+                        util.inspect(settings)); 
+      if(val < 0) wordsView.setInt16( idx*2, val);
+      else        wordsView.setUint16(idx*2, val);
+      if(key == '') console.log(wordsView);
       motor.settings[key] = val;
     }
   });
@@ -135,7 +142,7 @@ const move = (nameOrIdx, pos, speed, accel) => {
     const opcodeView = new Uint8Array(cmdBuf);
     opcodeView[0] = opcode.speedMove + ((speed >> 8) & 0x3f);
     const posView = new DataView(cmdBuf,1);
-    posView.setUint16(0, pos);
+    posView.setInt16(0, pos);
     return i2c.write(motor.i2cAddr, cmdBuf, 3);
   }
   else {              
@@ -143,12 +150,13 @@ const move = (nameOrIdx, pos, speed, accel) => {
     opcodeView[0] = opcode.accelSpeedMove + accel;
     const speedPosView = new DataView(cmdBuf,1);
     speedPosView.setUint16(0, speed);
-    speedPosView.setUint16(2, pos);
+    speedPosView.setInt16(2, pos);
     return i2c.write(motor.i2cAddr, cmdBuf, 5);
   }
 }
 
 const jog = (nameOrIdx, dir, dist) => {
+  dist = Math.min(4095, Math.max(1, dist));
   const motor = motorByNameOrIdx(nameOrIdx);
   const cmdBuf  = new ArrayBuffer(5);       
   const cmdView = new DataView(cmdBuf);
@@ -216,7 +224,7 @@ const getStatus = async (nameOrIdx) => {
 const getTestPos  = async (nameOrIdx) => {
   const motor = motorByNameOrIdx(nameOrIdx);
   // make sure these are adjacent in I2C queue
-  const promise1 = i2c.write(motor.i2cAddr, Buffer.from([opcode.getTestPos]));
+  const promise1 = i2c.write(motor.i2cAddr, opcode.getTestPos);
   const promise2 = i2c.read(motor.i2cAddr);
   await promise1;
   const recvBuf = await promise2;

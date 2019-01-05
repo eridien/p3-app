@@ -33,20 +33,21 @@ console.log('p3 server starting\n');
       }
     });
 
-    const mot = require('./motor');
-    await mot.init();
-    await mot.home('Z');
-    // await mot.home('F'); 
-    const tst = require('./test');
-    tst.init();
-
     // const mot = require('./motor');
     // await mot.init();
-    // const ws  = require('./websocket');
-    // await ws.init();
+    // await mot.home('Z');
+    // // await mot.home('F'); 
+    // const tst = require('./test');
+    // tst.init();
+
+    const mot = require('./motor');
+    await mot.init();
+    await mot.sendSettings('F', {minPos: -32000});
+    const ws  = require('./websocket');
+    await ws.init();
 
   }
   catch (e) {
-    console.log('error starting:', e);
+    console.log('error starting:', e.message);
   };
 })();

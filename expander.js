@@ -80,7 +80,8 @@ const readSw = async () => {
     return curSwVal;
   }
   catch(e) {
-    console.log('exp readSw error', e);
+    console.log('exp readSw error', e.message);
+    return 0;
   }
 }
 

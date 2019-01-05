@@ -28,33 +28,34 @@
   All commands are started immediately even when motor is busy (moving, homing, etc.)
   If needed, the host can check for finished by polling busy-bit in state
   No commands are buffered like G-Code commands
-  Commands can be linked to async operations such as clicking on a webpage
+  (So commands can be linked to async operations such as clicking on a webpage)
   Changed settings take effect immediately even when motor is busy
 
   -- one-byte commands --
-  0001 0000  home       start homing (or fake home if no limit switch)
-  0001 0001  test       next read position is end position of homing (test pos)
-  0001 0010  stop       soft stop, decelerates, no reset
-  0001 0011  stopRst    decelerates and then resets
-  0001 0100  reset      hard stop (power down motor with immediate reset)
-  0001 0101  motorOn    (power up motor by removing reset)
-  0001 0110  fakeHome   set curpos to home pos value setting and turn motor on (fake homing)
-  0000 001x  setAux     set aux ouput pin to x (one bit per mcu)
+  0001 0000  home        start homing (or fake home if no limit switch)
+  0001 0001  reserved
+  0001 0010  stop        soft stop, decelerates, no reset
+  0001 0011  stopRst     decelerates and then resets
+  0001 0100  reset       hard stop (power down motor with immediate reset)
+  0001 0101  motorOn     (power up motor by removing reset)
+  0001 0110  fakeHome    set curpos to home pos value setting, turn motor on
+  0001 0111  resetMcu    reboot this mcu
+  0000 01ss  specialRead next status bytes 2-3 is special value (ss 0: test pos)
 
   -- 2-byte move command --
-  1aaa aaaa    top 7 bits of target position
+  1aaa aaaa    top 7 bits of target position (always positive)
     aaaa aaaa  bottom 8 bits
 
   -- 3-byte speed-move command --
   01ss ssss     set speed setting to value s times 256
-    0aaa aaaa   top 7 bits of target position,
+    aaaa aaaa   signed target position
     aaaa aaaa   bottom 8 bits
 
   -- 5-byte accel-speed-move command --  
   0000 1ccc    set acceleration idx setting
     ssss ssss  top 8 bits of speed,
     ssss ssss  bottom 8 bits
-    0aaa aaaa  top 7 bits of target position,
+    aaaa aaaa  signed target position
     aaaa aaaa  bottom 8 bits
 
   -- 2-byte jog command  (no bounds checking, does not need to be homed)
@@ -66,8 +67,9 @@
   0001 1111  load settings, all are two-byte, big-endian, 16-bit values
     acceleration rate table index 0..7, 0 is off
     default speed
-    jerk (start/stop speed and above this speed, acceleration is needed)
-    max pos (min pos is always zero))
+    jerk (start/stop speed and above this speed acceleration is needed)
+    min bounds (usually 0)
+    max bounds
     homing speed
     homing back-up speed
     home offset distance (final home distance from switch)
@@ -103,10 +105,8 @@
     NO_SETTINGS         0x60  no settings
     NOT_HOMED           0x70  move cmd when not homed
 
-  motor position is stored for testing when homing first closes limit switch
+  motor position is stored for testing when homing opens limit switch backing up
   this allows testing to make sure no steps are missed when doing move/home
-  Command 0x11 tells next status read to return this test position
-  This status read will have the status byte value of 0x08
-
-  position values in commands must be positive, top bit is zero
-  position returned in status is signed and may be negative (e.g. when homing)
+  Command 0x04 tells next status read to return this test position
+  This status read will have the status byte value of 0x08.
+  In the future the type of status value will be encoded in d0 - d1
