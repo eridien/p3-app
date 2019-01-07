@@ -85,6 +85,7 @@ const init = async () => {
   try {
     exp.onSwChg( async (on) => {
       if(on) {
+        console.log('onSwChg on');
         cam.focus();
         wasOn = true;
       }

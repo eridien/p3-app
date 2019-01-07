@@ -79,9 +79,10 @@
     mcuClock;   // period of clock in usecs  (motor 0 applies to entire mcu)
 
   limit sw control word format for settings command above
-  0000 0000 00ss 000p
-    ss: limit switch number, 0 is none
-     p:  switch polarity, 0: active voltage low,  1: high
+  0sss 0000 aaaa 000p
+   sss: limit switch number, 0 is none
+  aaaa: use pin activity for limit, no change for aaaa*64 steps => closed
+     p: switch polarity, 0: closed is low,  1: high
 
   -- 3-byte status read --
   this is the only read format on i2c

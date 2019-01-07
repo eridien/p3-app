@@ -2,17 +2,19 @@
 const util = require('util');
 const i2c  = require('./i2c');
 
+//0sss 0000 aaaa 000p
+
 const motors = [
   // MCU A
-  { name: 'X', i2cAddr: 0x04, mcu:0, limitSw: 0x10, backlashWid:0, homePosVal: 0, descr: 'X-Axis' },
-  { name: 'Y', i2cAddr: 0x05, mcu:0, limitSw: 0x20, backlashWid:0, homePosVal: 0, descr: 'Y-Axis' },
-  { name: 'H', i2cAddr: 0x06, mcu:0, limitSw: 0x30, backlashWid:0, homePosVal: 0, descr: 'Height' },
-  { name: 'E', i2cAddr: 0x07, mcu:0, limitSw:    0, backlashWid:0, homePosVal: 0, descr: 'Extruder' },
+  { name: 'X', i2cAddr: 0x04, mcu:0, limitSw: 0x1000, backlashWid:0, homePosVal: 0, descr: 'X-Axis' },
+  { name: 'Y', i2cAddr: 0x05, mcu:0, limitSw: 0x2000, backlashWid:0, homePosVal: 0, descr: 'Y-Axis' },
+  { name: 'H', i2cAddr: 0x06, mcu:0, limitSw: 0x3000, backlashWid:0, homePosVal: 0, descr: 'Height' },
+  { name: 'E', i2cAddr: 0x07, mcu:0, limitSw: 0x0000, backlashWid:0, homePosVal: 0, descr: 'Extruder' },
   // MCU BhomePosVal: 0, 
-  { name: 'R', i2cAddr: 0x08, mcu:1, limitSw: 0x10, backlashWid:0, homePosVal: 0, descr: 'Rotation' },
-  { name: 'Z', i2cAddr: 0x09, mcu:1, limitSw: 0x30, backlashWid:0, homePosVal: 0, descr: 'Zoom' },
-  { name: 'F', i2cAddr: 0x0a, mcu:1, limitSw:    0, backlashWid:1, homePosVal: 32000, descr: 'Focus' },
-  { name: 'P', i2cAddr: 0x0b, mcu:1, limitSw: 0x20, backlashWid:0, homePosVal: 0, descr: 'Pincher' },
+  { name: 'R', i2cAddr: 0x08, mcu:1, limitSw: 0x0000, backlashWid:0, homePosVal: 0, descr: 'Rotation' },
+  { name: 'Z', i2cAddr: 0x09, mcu:1, limitSw: 0x3000, backlashWid:0, homePosVal: 0, descr: 'Zoom' },
+  { name: 'F', i2cAddr: 0x0a, mcu:1, limitSw: 0x1080, backlashWid:1, homePosVal: 0, descr: 'Focus' },
+  { name: 'P', i2cAddr: 0x0b, mcu:1, limitSw: 0x2000, backlashWid:0, homePosVal: 0, descr: 'Pincher' },
 ];
 
 const mcuI2cAddr = [0x04, 0x08];
