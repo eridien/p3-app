@@ -7,7 +7,7 @@ const sleep = require('util').promisify(setTimeout);
 const devicePort = '/dev/video0';
 const capVid = false;
 const jogDist = 10;
-let dir = 0;
+let dir = 1;
 const burnCnt = 50;
 const numSamples = 2;
 let graphBase = 0;
@@ -51,6 +51,8 @@ const getFrameBlur = async () => {
 const focus = async () => {
   // mot.home('Z');
   const hist = [];
+  console.log(exp.swOn());
+
   while(exp.swOn()) {
     const s = await mot.getStatus('F');
     if(capVid) {

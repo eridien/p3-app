@@ -13,7 +13,7 @@ const motors = [
   // MCU BhomePosVal: 0, 
   { name: 'R', i2cAddr: 0x08, mcu:1, limitSw: 0x0000, backlashWid:0, homePosVal: 0, descr: 'Rotation' },
   { name: 'Z', i2cAddr: 0x09, mcu:1, limitSw: 0x3000, backlashWid:0, homePosVal: 0, descr: 'Zoom' },
-  { name: 'F', i2cAddr: 0x0a, mcu:1, limitSw: 0x1080, backlashWid:1, homePosVal: 0, descr: 'Focus' },
+  { name: 'F', i2cAddr: 0x0a, mcu:1, limitSw: 0x10f0, backlashWid:1, homePosVal: 0, descr: 'Focus' },
   { name: 'P', i2cAddr: 0x0b, mcu:1, limitSw: 0x2000, backlashWid:0, homePosVal: 0, descr: 'Pincher' },
 ];
 

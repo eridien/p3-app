@@ -33,9 +33,11 @@ console.log('p3 server starting\n');
     const mot = require('./motor');
     await mot.init();
     await mot.home('Z');
-    // await mot.home('F'); 
-    const tst = require('./test');
-    tst.init();
+    await mot.notBusy('Z');
+    await mot.home('F'); 
+    await mot.notBusy('Z');
+    // const tst = require('./test');
+    // tst.init();
 
     // const mot = require('./motor');
     // await mot.init();

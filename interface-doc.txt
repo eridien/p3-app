@@ -90,7 +90,7 @@
     1) veee sboh  state byte
         v: version (1-bit)
       eee: error code (see below)
-        s: special status returned in bytes 2 and 3
+        s: flag that special status is in bytes 2 and 3
         b: busy     (homing, moving, or stopping)
         o: motor on (not in reset)
         h: homed    (motor has been homed since last reset)

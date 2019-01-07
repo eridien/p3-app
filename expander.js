@@ -67,22 +67,24 @@ const init = async () => {
 }
 
 const readSw = async () => {
-  try {
-    // make sure these are adjacent in I2C queue
-    const promise1 = i2c.write(i2cAddr, inputReg);
-    const promise2 = i2c.read(i2cAddr);
-    await promise1;
-    const newVal = !!((await promise2)[0] & swMask);
-    // console.log('readSw:', newVal);
-    let newEq = (lastSwVal === newVal);
-    lastSwVal = newVal;
-    if(newEq) curSwVal = newVal;
-    return curSwVal;
-  }
-  catch(e) {
-    console.log('exp readSw error', e.message);
-    return 0;
-  }
+  curSwVal = true;
+  return false;
+  // try {
+  //   // make sure these are adjacent in I2C queue
+  //   const promise1 = i2c.write(i2cAddr, inputReg);
+  //   const promise2 = i2c.read(i2cAddr);
+  //   await promise1;
+  //   const newVal = !!((await promise2)[0] & swMask);
+  //   // console.log('readSw:', newVal);
+  //   let newEq = (lastSwVal === newVal);
+  //   lastSwVal = newVal;
+  //   if(newEq) curSwVal = newVal;
+  //   return curSwVal;
+  // }
+  // catch(e) {
+  //   console.log('exp readSw error', e.message);
+  //   return false;
+  // }
 }
 
 const setLights = async (lights) =>
@@ -104,9 +106,10 @@ const onSwChg = (cb) => {
   forceCallback = true;
 }
 
-// 2 to 4 ms per chk, 10% of values were 11, max: 81
+// 2 to 4 ms per chk, 10% of values were 11 ms, max: 81 ms
 const chkSw = async () => {
   await readSw();
+  // console.log(curSwVal);
   if(forceCallback || curSwVal !== lastCbSwVal) {
     lastCbSwVal = curSwVal;
     for(let cb of swCallbacks) {
