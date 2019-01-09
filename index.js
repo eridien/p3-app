@@ -20,30 +20,36 @@ console.log('p3 server starting\n');
 
 (async () => {
   try {
-    await exp.init();
-    exp.onSwChg( async (on) => {
-      if(on) {
-        await exp.setWifiLed(true);
-      }
-      else {     
-        await exp.setWifiLed(false); 
-      }
-    });
+    // await exp.init();
+    // exp.onSwChg( async (on) => {
+    //   if(on) {
+    //     await exp.setWifiLed(true);
+    //   }
+    //   else {     
+    //     await exp.setWifiLed(false); 
+    //   }
+    // });
 
-    const mot = require('./motor');
-    await mot.init();
-    await mot.home('Z');
-    await mot.notBusy('Z');
-    await mot.home('F'); 
-    await mot.notBusy('Z');
-    // const tst = require('./test');
-    // tst.init();
+    // const mot = require('./motor');
+    // mot.reset('F');
+    // await mot.init();
+    // const cam = require('./camera');
+    // await cam.home();
 
     // const mot = require('./motor');
     // await mot.init();
-    // await mot.sendSettings('F', {minPos: -32000});
-    // const ws  = require('./websocket');
-    // await ws.init();
+    // await mot.home('Z');
+    // await mot.notBusy('Z');
+    // await mot.home('F'); 
+    // await mot.notBusy('Z');
+    // const tst = require('./test');
+    // tst.init();
+
+    const mot = require('./motor');
+    await mot.init();
+    await mot.sendSettings('F', {minPos: -32000});
+    const ws  = require('./websocket');
+    await ws.init();
 
   }
   catch (e) {

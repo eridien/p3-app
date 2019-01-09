@@ -4,15 +4,15 @@ const i2c  = require('./i2c');
 
 const motors = [
   // MCU A
-  { name: 'X', i2cAddr: 0x04, mcu:0, homingDir: 0, limitSw: 0x1000, descr: 'X-Axis' },
-  { name: 'Y', i2cAddr: 0x05, mcu:0, homingDir: 0, limitSw: 0x2000, descr: 'Y-Axis' },
-  { name: 'H', i2cAddr: 0x06, mcu:0, homingDir: 0, limitSw: 0x3000, descr: 'Height' },
-  { name: 'E', i2cAddr: 0x07, mcu:0, homingDir: 0, limitSw: 0x0000, descr: 'Extruder' },
-  // MCU B
-  { name: 'R', i2cAddr: 0x08, mcu:1, homingDir: 0, limitSw: 0x0000, descr: 'Rotation' },
-  { name: 'Z', i2cAddr: 0x09, mcu:1, homingDir: 0, limitSw: 0x3000, descr: 'Zoom' },
-  { name: 'F', i2cAddr: 0x0a, mcu:1, homingDir: 1, limitSw: 0x1780, descr: 'Focus' },
-  { name: 'P', i2cAddr: 0x0b, mcu:1, homingDir: 0, limitSw: 0x2000, descr: 'Pincher' },
+  { name: 'X', i2cAddr: 0x04, mcu:0, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x1000, descr: 'X-Axis' },
+  { name: 'Y', i2cAddr: 0x05, mcu:0, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x2000, descr: 'Y-Axis' },
+  { name: 'H', i2cAddr: 0x06, mcu:0, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x3000, descr: 'Height' },
+  { name: 'E', i2cAddr: 0x07, mcu:0, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x0000, descr: 'Extruder' },
+  // MCU B       
+  { name: 'R', i2cAddr: 0x08, mcu:1, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x0000, descr: 'Rotation' },
+  { name: 'Z', i2cAddr: 0x09, mcu:1, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x3000, descr: 'Zoom' },
+  { name: 'F', i2cAddr: 0x0a, mcu:1, homingDir: 1, homeSpeed: 2000, homeBkupSpeed:1200, homePosVal: 32000, limitSw: 0x1840, descr: 'Focus' },
+  { name: 'P', i2cAddr: 0x0b, mcu:1, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x2000, descr: 'Pincher' },
 ];
 
 const mcuI2cAddr = [0x04, 0x08];
@@ -55,8 +55,12 @@ motors.forEach( (motor, idx) => {
   defSettings.forEach( (keyVal) => {
     motor.settings[keyVal[0]] = keyVal[1];
   });
-  motor.settings.homingDir  = motor.homingDir;
-  motor.settings.limitSw    = motor.limitSw;
+  motor.settings.homingDir     = motor.homingDir;
+  motor.settings.homeSpeed     = motor.homeSpeed;
+  motor.settings.homeBkupSpeed = motor.homeBkupSpeed;
+  motor.settings.homePosVal    = motor.homePosVal;
+  motor.settings.limitSw       = motor.limitSw;
+
   motorByName[motor.name]   = motor;
 });
 
@@ -65,7 +69,7 @@ motors.forEach( (motor, idx) => {
 const opcode = {
   move:         0x8000,
   jog:          0x2000,
-  auxOnOff:       0x02,
+  setPos:         0x01,
   speedMove:      0x40,
   accelSpeedMove: 0x08,
   getTestPos:     0x04,
@@ -162,6 +166,15 @@ const jog = (nameOrIdx, dir, dist) => {
   const cmdView = new DataView(cmdBuf);
   cmdView.setUint16(0, opcode.jog + (dir << 12) + dist);
   return i2c.write(motor.i2cAddr, cmdBuf, 2);
+}
+
+const setPos = (nameOrIdx, pos) => {
+  const motor = motorByNameOrIdx(nameOrIdx);
+  const cmdBuf  = new ArrayBuffer(3);       
+  const cmdView = new DataView(cmdBuf);
+  cmdView.setUint8(0, opcode.setPos);
+  cmdView.setInt16(1, pos);
+  return i2c.write(motor.i2cAddr, cmdBuf, 3);
 }
 
 const errString = (code) => {
@@ -274,6 +287,7 @@ const rpc = async (msgObj) => {
       case 'sendSettings':      return sendSettings(...args);
       case 'home':              return home(...args);
       case 'fakeHome':          return fakeHome(...args);
+      case 'setPos':            return setPos(...args);
       case 'move':              return move(...args);
       case 'jog':               return jog(...args);
       case 'stop':              return stop(...args);
@@ -295,7 +309,7 @@ const rpc = async (msgObj) => {
 
 module.exports = {
 motors, motorByNameOrIdx, init, sendSettings,
-  home, jog, fakeHome, move, 
+  home, jog, setPos, fakeHome, move, 
   stop, stopRst, reset, motorOn, fanOnOff, buzzerOnOff, reboot,
   getStatus, getTestPos, notBusy, rpc
 };

@@ -46,6 +46,11 @@
   1aaa aaaa    top 7 bits of target position (always positive)
     aaaa aaaa  bottom 8 bits
 
+  -- 3-byte set position command --
+  0000 0001     set position
+    aaaa aaaa   signed target position
+    aaaa aaaa   bottom 8 bits
+
   -- 3-byte speed-move command --
   01ss ssss     set speed setting to value s times 256
     aaaa aaaa   signed target position
@@ -70,6 +75,7 @@
     jerk (start/stop speed and above this speed acceleration is needed)
     min bounds (usually 0)
     max bounds
+    reverse homing dir (0: normal backwards, 1:forwards)
     homing dir
     homing speed
     homing back-up speed

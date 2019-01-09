@@ -5,14 +5,8 @@ const exp = require('./expander');
 const sleep = require('util').promisify(setTimeout);
 
 const devicePort = '/dev/video0';
-const capVid = false;
-const jogDist = 10;
-let dir = 1;
-const burnCnt = 50;
-const numSamples = 2;
-let graphBase = 0;
-const graphMul  = 20;
-const histSize = 10;
+const capVid = true;
+let dir = 0;
 
 const zoomPos  = [0,  1000,  2000,   3000,   3100,   3200,   3300,   3350,   3375,   3400,   3425];
 const focusPos = [0, -2000, -5000, -19000, -22000, -29000, -38000, -44000, -48500, -55000, -61000];
@@ -26,9 +20,10 @@ const zoomMmToFocusSteps = (zoomInMM) => {
 }
 
 let vCap;
+const burnCnt = 2;
+const numSamples = 2;
 
 const getFrameBlur = async () => {
-  if(!vCap) vCap = new cv.VideoCapture(devicePort);
   if(burnCnt) {
     for(let i=0; i< burnCnt; i++) {
       if(!vCap) return 0;
@@ -48,26 +43,26 @@ const getFrameBlur = async () => {
   return sum/numSamples;
 }
 
-const focus = async () => {
-  // mot.home('Z');
-  const hist = [];
-  console.log(exp.swOn());
+let graphBase;
+const graphMul  = 20;
+const jogDist = 50;
+const numSteps = 500;
 
-  while(exp.swOn()) {
-    const s = await mot.getStatus('F');
+const autoFocus = async () => {
+  let s, maxFocusPos;
+  let maxFocusVal = Math.max();
+  const startPos = (s = await mot.getStatus('F')).pos;
+  while(s.pos > startPos-numSteps) {
     if(capVid) {
       const blur = await getFrameBlur();
-      hist.push(blur);
-      let lft = rgt = 0;
-      if(hist.length == histSize) {
-        for(let i=0;          i < histSize/2; i++) lft += hist[i];
-        for(let i=histSize/2; i < histSize;   i++) rgt += hist[i];
-        hist.shift();
+      if(blur > maxFocusVal) {
+        maxFocusPos = s.pos;
+        maxFocusVal = blur;
+        // console.log('pos,val:', maxFocusPos, maxFocusVal);
       }
-      h=`${dir?'^':'v'} ${s.pos} ` +
-        `${(rgt-lft) > 0 ? '^':'v'} ${Math.round(lft)} ${Math.round(rgt)} ${Math.round(blur)}  `;
-      while(h.length < 28) h += ' ';
-      if(graphBase == 0) graphBase = blur - 300;
+      h=`${dir?'^':'v'} ${s.pos} ${Math.round(blur)}  `;
+      while(h.length < 15) h += ' ';
+      if(!graphBase) graphBase = blur - 300;
       for(let i=0; i < (blur-graphBase); i += graphMul) h += '*';
       console.log(h);
     }
@@ -75,25 +70,28 @@ const focus = async () => {
       console.log(`${dir?'^':'v'} ${s.pos}`);
     await mot.jog('F', dir, jogDist);
     await mot.notBusy('F');
-    // await sleep(1000);
+    s = await mot.getStatus('F');
   }
+  console.log('maxFocusPos:', maxFocusPos);
+  await mot.move('F', maxFocusPos, 4000);
 }
 
-const reset = async () => {
-  dir = 1-dir;
-  console.log();
-  if(capVid) {
-    console.log('releasing vCap');
-    if(vCap) vCap.release();
-    vCap = null;
-  }
-  // process.exit();
-}
+const typFocusPos = 10500;
 
 const home = async () => {
-  mot.home('Z');
-  focusPos();
+  if(capVid) 
+    vCap = await new cv.VideoCapture(devicePort);
+  await mot.home('Z');
+  await mot.home('F');
+  await mot.notBusy('F');
+  // 
+  await mot.move('F', typFocusPos + numSteps/2, 4000);
+  await mot.notBusy(['F', 'Z']);
+  await autoFocus();
+  if(vCap) await vCap.release();
+  await sleep(1000);
+  process.exit(0);
 }
 
-module.exports = {home, focus, reset};
+module.exports = {home, autoFocus};
 
