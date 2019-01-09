@@ -2,19 +2,17 @@
 const util = require('util');
 const i2c  = require('./i2c');
 
-//0sss 0000 aaaa 000p
-
 const motors = [
   // MCU A
-  { name: 'X', i2cAddr: 0x04, mcu:0, limitSw: 0x1000, backlashWid:0, homePosVal: 0, descr: 'X-Axis' },
-  { name: 'Y', i2cAddr: 0x05, mcu:0, limitSw: 0x2000, backlashWid:0, homePosVal: 0, descr: 'Y-Axis' },
-  { name: 'H', i2cAddr: 0x06, mcu:0, limitSw: 0x3000, backlashWid:0, homePosVal: 0, descr: 'Height' },
-  { name: 'E', i2cAddr: 0x07, mcu:0, limitSw: 0x0000, backlashWid:0, homePosVal: 0, descr: 'Extruder' },
-  // MCU BhomePosVal: 0, 
-  { name: 'R', i2cAddr: 0x08, mcu:1, limitSw: 0x0000, backlashWid:0, homePosVal: 0, descr: 'Rotation' },
-  { name: 'Z', i2cAddr: 0x09, mcu:1, limitSw: 0x3000, backlashWid:0, homePosVal: 0, descr: 'Zoom' },
-  { name: 'F', i2cAddr: 0x0a, mcu:1, limitSw: 0x10f0, backlashWid:1, homePosVal: 0, descr: 'Focus' },
-  { name: 'P', i2cAddr: 0x0b, mcu:1, limitSw: 0x2000, backlashWid:0, homePosVal: 0, descr: 'Pincher' },
+  { name: 'X', i2cAddr: 0x04, mcu:0, homingDir: 0, limitSw: 0x1000, descr: 'X-Axis' },
+  { name: 'Y', i2cAddr: 0x05, mcu:0, homingDir: 0, limitSw: 0x2000, descr: 'Y-Axis' },
+  { name: 'H', i2cAddr: 0x06, mcu:0, homingDir: 0, limitSw: 0x3000, descr: 'Height' },
+  { name: 'E', i2cAddr: 0x07, mcu:0, homingDir: 0, limitSw: 0x0000, descr: 'Extruder' },
+  // MCU B
+  { name: 'R', i2cAddr: 0x08, mcu:1, homingDir: 0, limitSw: 0x0000, descr: 'Rotation' },
+  { name: 'Z', i2cAddr: 0x09, mcu:1, homingDir: 0, limitSw: 0x3000, descr: 'Zoom' },
+  { name: 'F', i2cAddr: 0x0a, mcu:1, homingDir: 1, limitSw: 0x1780, descr: 'Focus' },
+  { name: 'P', i2cAddr: 0x0b, mcu:1, homingDir: 0, limitSw: 0x2000, descr: 'Pincher' },
 ];
 
 const mcuI2cAddr = [0x04, 0x08];
@@ -27,9 +25,10 @@ const defSettings = [
   ['jerk',           1200], // start/stop pull-in speed -- 30 mm/sec
   ['minPos',            0], // min pos
   ['maxPos',        32000], // max pos is 800 mm
+  ['homingDir',         0], // homing dir, 0: normal (starts backwards)
   ['homeSpeed',      1000], // homing speed (25 mm/sec)
   ['homeBkupSpeed',    60], // homing back-up speed (1.5 mm/sec)
-  ['homeOfs',          20], // home offset distance, 0.5 mm
+  ['homeOfs',          10], // home offset distance, 0.25 mm
   ['homePosVal',        0], // home pos value, set pos to this after homing
   ['limitSw',           0], // limit switch control (set from motor table)
   ['backlashWid',       0], // width of backslash dead interval
@@ -56,10 +55,9 @@ motors.forEach( (motor, idx) => {
   defSettings.forEach( (keyVal) => {
     motor.settings[keyVal[0]] = keyVal[1];
   });
-  motor.settings.limitSw     = motor.limitSw;
-  motor.settings.backlashWid = motor.backlashWid;
-  motor.settings.homePosVal  = motor.homePosVal;
-  motorByName[motor.name]    = motor;
+  motor.settings.homingDir  = motor.homingDir;
+  motor.settings.limitSw    = motor.limitSw;
+  motorByName[motor.name]   = motor;
 });
 
 // console.log(motors[6]);

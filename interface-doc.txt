@@ -70,6 +70,7 @@
     jerk (start/stop speed and above this speed acceleration is needed)
     min bounds (usually 0)
     max bounds
+    homing dir
     homing speed
     homing back-up speed
     home offset distance (final home distance from switch)
@@ -79,9 +80,10 @@
     mcuClock;   // period of clock in usecs  (motor 0 applies to entire mcu)
 
   limit sw control word format for settings command above
-  0sss 0000 aaaa 000p
+  0sss tttt hhhh 000p
    sss: limit switch number, 0 is none
-  aaaa: use pin activity for limit, no change for aaaa*64 steps => closed
+  tttt  limit switch activity timeout, no change for tttt*64 steps => closed
+  hhhh: limit switch activity hysteresis, hhhh*32 steps must be same
      p: switch polarity, 0: closed is low,  1: high
 
   -- 3-byte status read --
