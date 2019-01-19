@@ -6,15 +6,15 @@ const mcuI2cAddr = [0x04, 0x08];
 
 const motors = [
   // MCU A
-  { name: 'X', i2cAddr: 0x04, mcu:0, descr: 'X-Axis' },
-  { name: 'Y', i2cAddr: 0x05, mcu:0, descr: 'Y-Axis' },
-  { name: 'H', i2cAddr: 0x06, mcu:0, descr: 'Height' },
-  { name: 'E', i2cAddr: 0x07, mcu:0, descr: 'Extruder' },
+  { name: 'X', i2cAddr: 0x04, mcu:0, descr: 'X-Axis'  , limitSw: 0x1000},
+  { name: 'Y', i2cAddr: 0x05, mcu:0, descr: 'Y-Axis'  , limitSw: 0x2000},
+  { name: 'H', i2cAddr: 0x06, mcu:0, descr: 'Height'  , limitSw: 0x3001},
+  { name: 'E', i2cAddr: 0x07, mcu:0, descr: 'Extruder', limitSw:      0},
   // MCU B       
-  { name: 'R', i2cAddr: 0x08, mcu:1, descr: 'Rotation' },
-  { name: 'Z', i2cAddr: 0x09, mcu:1, descr: 'Zoom' },
-  { name: 'F', i2cAddr: 0x0a, mcu:1, descr: 'Focus' },
-  { name: 'P', i2cAddr: 0x0b, mcu:1, descr: 'Pincher' },
+  { name: 'R', i2cAddr: 0x08, mcu:1, descr: 'Rotation', limitSw:      0}, // debug
+  { name: 'Z', i2cAddr: 0x09, mcu:1, descr: 'Zoom'    , limitSw: 0x3000},
+  { name: 'F', i2cAddr: 0x0a, mcu:1, descr: 'Focus'   , limitSw: 0x1001}, // debug
+  { name: 'P', i2cAddr: 0x0b, mcu:1, descr: 'Pincher' , limitSw: 0x2000},
 ];
 
 const defSettings = [
@@ -37,17 +37,17 @@ const defSettings = [
 ];
 
 const settings = [
-  [['limitSw',      0x1000]], // X
-  [['limitSw',      0x2000]], // Y
-  [['limitSw',      0x3001]], // H
-  [],                         // E
+  [],                          // X
+  [],                          // Y
+  [],                          // H
+  [],                          // E
 
-  [],                         // R
-  [['limitSw',      0x3000]], // Z
-  [['limitSw',      0x1001],  // F
-   ['homeSpeed',      4000],
+  [],                          // R
+  [],                          // Z
+  [['homingDir',         1],   // F
+   ['homeSpeed',      4000],   // F
    ['homeBkupSpeed',  1200]],
-  [['limitSw',      0x2000]]  // P
+  []                           // P
 ];
 
 const settingsKeys = [];
@@ -59,7 +59,7 @@ const motorByName = {};
 motors.forEach( (motor, idx) => {
   motor.idx               = idx;
   motorByName[motor.name] = motor;
-  motor.settings          = {};
+  motor.settings          = {limitSw: motor.limitSw};
   defSettings  .forEach( (keyVal) => {motor.settings[keyVal[0]] = keyVal[1]});
   settings[idx].forEach( (keyVal) => {motor.settings[keyVal[0]] = keyVal[1]});
 });
@@ -249,11 +249,11 @@ const getTestPos  = async (nameOrIdx) => {
   const promise2 = i2c.read(motor.i2cAddr);
   await promise1;
   const recvBuf = await promise2;
-  if((recvBuf[0] & 0x0f) != 0) 
+  if((recvBuf[0] & 0x0f) != 0x08) 
     throw new Error('invalid state byte in getTestPos: ' + util.inspect(recvBuf));
   let pos = ((recvBuf[1] << 8) | recvBuf[2]);
   if (pos > 32767) pos -= 65536;
-  return pos;
+  return pos + motor.settings.homeOfs;
 }
 
 const getMiscState  = async (nameOrIdx) => {
@@ -263,7 +263,7 @@ const getMiscState  = async (nameOrIdx) => {
   const promise2 = i2c.read(motor.i2cAddr);
   await promise1;
   const recvBuf = await promise2;
-  if((recvBuf[0] & 0x0f) != 9) 
+  if((recvBuf[0] & 0x0f) != 0x09) 
     throw new Error('invalid state byte in getMiscState: ' + util.inspect(recvBuf));
   return  (recvBuf[1] << 8) | recvBuf[2];
 }
