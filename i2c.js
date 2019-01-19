@@ -1,5 +1,5 @@
 /*
-to set up i2c ...
+to set up i2c on raspi (needed only once) ...
 
 1) run raspi-config and enable i2c
 

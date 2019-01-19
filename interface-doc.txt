@@ -40,7 +40,7 @@
   0001 0101  motorOn     (power up motor by removing reset)
   0001 0110  fakeHome    set curpos to home pos value setting, turn motor on
   0001 0111  resetMcu    reboot this mcu
-  0000 01ss  specialRead next status bytes 2-3 is special value (ss 0: test pos)
+  0000 01ss  specialRead next status bytes 2-3 is special value (ss 0: test pos, ss 1: misc)
 
   -- 2-byte move command --
   1aaa aaaa    top 7 bits of target position (always positive)
@@ -114,8 +114,14 @@
     NO_SETTINGS         0x60  no settings
     NOT_HOMED           0x70  move cmd when not homed
 
+specialRead S:0, test pos
   motor position is stored for testing when homing opens limit switch backing up
   this allows testing to make sure no steps are missed when doing move/home
   Command 0x04 tells next status read to return this test position
-  This status read will have the status byte value of 0x08.
-  In the future the type of status value will be encoded in d0 - d1
+  This status read will have a status byte value of 0x08.
+
+specialRead S:1, misc states
+  Command 0x05 tells next status read to return this set of state values
+  0000 0000 0000 000s
+    s:  Limit switch active (after possible inversion)
+  This status read will have a status byte value of 0x09.    

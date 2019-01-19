@@ -2,20 +2,20 @@
 const util = require('util');
 const i2c  = require('./i2c');
 
+const mcuI2cAddr = [0x04, 0x08];
+
 const motors = [
   // MCU A
-  { name: 'X', i2cAddr: 0x04, mcu:0, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x1000, descr: 'X-Axis' },
-  { name: 'Y', i2cAddr: 0x05, mcu:0, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x2000, descr: 'Y-Axis' },
-  { name: 'H', i2cAddr: 0x06, mcu:0, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x3000, descr: 'Height' },
-  { name: 'E', i2cAddr: 0x07, mcu:0, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x0000, descr: 'Extruder' },
+  { name: 'X', i2cAddr: 0x04, mcu:0, descr: 'X-Axis' },
+  { name: 'Y', i2cAddr: 0x05, mcu:0, descr: 'Y-Axis' },
+  { name: 'H', i2cAddr: 0x06, mcu:0, descr: 'Height' },
+  { name: 'E', i2cAddr: 0x07, mcu:0, descr: 'Extruder' },
   // MCU B       
-  { name: 'R', i2cAddr: 0x08, mcu:1, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x0000, descr: 'Rotation' },
-  { name: 'Z', i2cAddr: 0x09, mcu:1, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x3000, descr: 'Zoom' },
-  { name: 'F', i2cAddr: 0x0a, mcu:1, homingDir: 1, homeSpeed: 2000, homeBkupSpeed:1200, homePosVal: 32000, limitSw: 0x1840, descr: 'Focus' },
-  { name: 'P', i2cAddr: 0x0b, mcu:1, homingDir: 0, homeSpeed: 1000, homeBkupSpeed:  60, homePosVal:     0, limitSw: 0x2000, descr: 'Pincher' },
+  { name: 'R', i2cAddr: 0x08, mcu:1, descr: 'Rotation' },
+  { name: 'Z', i2cAddr: 0x09, mcu:1, descr: 'Zoom' },
+  { name: 'F', i2cAddr: 0x0a, mcu:1, descr: 'Focus' },
+  { name: 'P', i2cAddr: 0x0b, mcu:1, descr: 'Pincher' },
 ];
-
-const mcuI2cAddr = [0x04, 0x08];
 
 const defSettings = [
   // accel is 0..7: none, 4000, 8000, 20000, 40000, 80000, 200000, 400000 steps/sec/sec
@@ -23,7 +23,7 @@ const defSettings = [
   ['accel',             4], // acceleration code (40000 steps/sec/sec, 1000 mm/sec/sec)
   ['speed',          2000], // default speed, 50 mm/sec
   ['jerk',           1200], // start/stop pull-in speed -- 30 mm/sec
-  ['minPos',            0], // min pos
+  ['minPos',       -32000], // min pos
   ['maxPos',        32000], // max pos is 800 mm
   ['homingDir',         0], // homing dir, 0: normal (starts backwards)
   ['homeSpeed',      1000], // homing speed (25 mm/sec)
@@ -36,10 +36,35 @@ const defSettings = [
                             // lower value reduces stepping jitter, but may cause errors
 ];
 
+const settings = [
+  [['limitSw',      0x1000]], // X
+  [['limitSw',      0x2000]], // Y
+  [['limitSw',      0x3001]], // H
+  [],                         // E
+
+  [],                         // R
+  [['limitSw',      0x3000]], // Z
+  [['limitSw',      0x1001],  // F
+   ['homeSpeed',      4000],
+   ['homeBkupSpeed',  1200]],
+  [['limitSw',      0x2000]]  // P
+];
+
 const settingsKeys = [];
 defSettings.forEach( (keyVal) => {
   settingsKeys.push(keyVal[0]);
 });
+
+const motorByName = {};
+motors.forEach( (motor, idx) => {
+  motor.idx               = idx;
+  motorByName[motor.name] = motor;
+  motor.settings          = {};
+  defSettings  .forEach( (keyVal) => {motor.settings[keyVal[0]] = keyVal[1]});
+  settings[idx].forEach( (keyVal) => {motor.settings[keyVal[0]] = keyVal[1]});
+});
+
+// console.log(motors[6].settings);
 
 const rejPromise = (msg) => {
   return new Promise( (res, rej) => {
@@ -48,24 +73,6 @@ const rejPromise = (msg) => {
   });
 };
 
-const motorByName = {};
-motors.forEach( (motor, idx) => {
-  motor.idx       = idx;
-  motor.settings  = {};
-  defSettings.forEach( (keyVal) => {
-    motor.settings[keyVal[0]] = keyVal[1];
-  });
-  motor.settings.homingDir     = motor.homingDir;
-  motor.settings.homeSpeed     = motor.homeSpeed;
-  motor.settings.homeBkupSpeed = motor.homeBkupSpeed;
-  motor.settings.homePosVal    = motor.homePosVal;
-  motor.settings.limitSw       = motor.limitSw;
-
-  motorByName[motor.name]   = motor;
-});
-
-// console.log(motors[6]);
-
 const opcode = {
   move:         0x8000,
   jog:          0x2000,
@@ -73,6 +80,7 @@ const opcode = {
   speedMove:      0x40,
   accelSpeedMove: 0x08,
   getTestPos:     0x04,
+  getMiscState:   0x05,
   home:           0x10,
   softStop:       0x12,
   softStopRst:    0x13,
@@ -241,12 +249,30 @@ const getTestPos  = async (nameOrIdx) => {
   const promise2 = i2c.read(motor.i2cAddr);
   await promise1;
   const recvBuf = await promise2;
-  if(!(recvBuf[0] & 0x08)) 
+  if((recvBuf[0] & 0x0f) != 0) 
     throw new Error('invalid state byte in getTestPos: ' + util.inspect(recvBuf));
   let pos = ((recvBuf[1] << 8) | recvBuf[2]);
   if (pos > 32767) pos -= 65536;
   return pos;
 }
+
+const getMiscState  = async (nameOrIdx) => {
+  const motor = motorByNameOrIdx(nameOrIdx);
+  // make sure these are adjacent in I2C queue
+  const promise1 = i2c.write(motor.i2cAddr, opcode.getMiscState);
+  const promise2 = i2c.read(motor.i2cAddr);
+  await promise1;
+  const recvBuf = await promise2;
+  if((recvBuf[0] & 0x0f) != 9) 
+    throw new Error('invalid state byte in getMiscState: ' + util.inspect(recvBuf));
+  return  (recvBuf[1] << 8) | recvBuf[2];
+}
+
+const getLimit  = async (nameOrIdx) => {
+  const lim =  (((await getMiscState(nameOrIdx)) & 0x01) == 1);
+  // console.log(nameOrIdx, lim);
+  return lim;
+};
 
 const fanOnOff    = (on) => i2c.write(mcuI2cAddr[0], opcode.auxOnOff + (on ? 1 : 0));
 const buzzerOnOff = (on) => i2c.write(mcuI2cAddr[1], opcode.auxOnOff + (on ? 1 : 0));
@@ -298,6 +324,8 @@ const rpc = async (msgObj) => {
       case 'buzzerOnOff':       return buzzerOnOff(...args);
       case 'getStatus':         return getStatus(...args);
       case 'getTestPos':        return getTestPos(...args);
+      case 'getMiscState':      return getMiscState(...args);
+      case 'getLimit':          return getLimit(...args);
       case 'notBusy':           return notBusy(...args);
       default: throw new Error('invalid motor function name: ' + func);
     } 
@@ -311,6 +339,6 @@ module.exports = {
 motors, motorByNameOrIdx, init, sendSettings,
   home, jog, setPos, fakeHome, move, 
   stop, stopRst, reset, motorOn, fanOnOff, buzzerOnOff, reboot,
-  getStatus, getTestPos, notBusy, rpc
+  getStatus, getTestPos, getMiscState, getLimit, notBusy, rpc
 };
  

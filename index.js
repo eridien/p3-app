@@ -47,10 +47,12 @@ console.log('p3 server starting\n');
 
     const mot = require('./motor');
     await mot.init();
-    await mot.sendSettings('F', {minPos: -32000});
-    const ws  = require('./websocket');
+    const ws = require('./websocket');
     await ws.init();
 
+    // setInterval( async () => {
+    //   console.log( await mot.getMiscState('F') );
+    // }, 1000);
   }
   catch (e) {
     console.log('error starting:', e.message);

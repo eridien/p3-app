@@ -3,6 +3,7 @@ const WebSocket = require('ws');
 const motor     = require('./motor');
 
 const init = async () => {
+  console.log('ws init');
   const wss = new WebSocket.Server({
     port: 3535,
     perMessageDeflate: false,
