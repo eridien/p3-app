@@ -15,9 +15,17 @@
   (inspect-brk is causing segfault -- use node --nolazy --no-warnings index.js)
 */
 
-const exp = require('./expander');
-
 console.log('p3 server starting\n');
+
+console.log('init temp sens');
+const tmp = require('./tempSens');
+
+setInterval( () => console.log(await tmp.readTemp()), 2000);
+
+// console.log('init expander');
+// const exp = require('./expander');
+
+
 
 // (async () => {
 //   try {
