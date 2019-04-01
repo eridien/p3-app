@@ -78,7 +78,7 @@ const readSw = async () => {
     console.log('readSw:', newVal);
     let newEq = (lastSwVal === newVal);
     lastSwVal = newVal;
-    if(newEq) curSwVal = newVal;
+    if(newEq) curSwVal = newVal;  // two reads must match for debounce
     return curSwVal;
   }
   catch(e) {
@@ -129,4 +129,4 @@ chkSw();
 
 setInterval( chkSw, 100 );
 
-module.exports = {init, setLights, setWifiLed, setMotorLed, swOn, onSwChg, setBuzzer};
+module.exports = {init, setLights, setWifiLed, setMotorLed, setBuzzer, swOn, onSwChg};

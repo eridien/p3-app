@@ -17,26 +17,26 @@
 
 console.log('p3 server starting\n');
 
-console.log('init temp sens');
-const tmp = require('./tempSens');
+// const tmp = require('./tempSens');
 
-// console.log('init expander');
-// const exp = require('./expander');
+const exp = require('./expander');
 
 (async () => {
   try {
-		await tmp.init();
-		setInterval( async () => {console.log(await tmp.readTemp())}, 2000);
+    // console.log('init temp sens');
+		// await tmp.init();
+		// setInterval( async () => {console.log(await tmp.readTemp())}, 2000);
 
-    // await exp.init();
-    // exp.onSwChg( async (on) => {
-    //   if(on) {
-    //     await exp.setWifiLed(true);
-    //   }
-    //   else {     
-    //     await exp.setWifiLed(false); 
-    //   }
-    // });
+    console.log('init expander');
+    await exp.init();
+    exp.onSwChg( async (on) => {
+      if(on) {
+        await exp.setWifiLed(true);
+      }
+      else {     
+        await exp.setWifiLed(false); 
+      }
+    });
 
     // const mot = require('./motor');
     // mot.reset('F');
