@@ -14,17 +14,9 @@ const tHighAddr  = 3;
 
 // OS:0, R:0 (9 bits), FT:2 (4 faults), POL:1 (actv hi), CMP:0 (compare mode), SD:0 (on)  
 // 0001 0100
-const configVal  = 0x14; 
-try {
-	// make sure these are adjacent in I2C queue
-	await i2c.write(i2cAddr, [confAddr, configVal]);
-  await i2c.write(i2cAddr, tempAddr); // leave in temp read mode
-}
-catch(e) {
-	console.log('tempsens config write error',  e);
-}
+const configVal = 0x14; 
 
-const setHysterisis = (lo, hi) => {
+const setHysterisis = async (lo, hi) => {
   try {
     // make sure these are adjacent in I2C queue
     await i2c.write(i2cAddr, [tLowAddr,  lo, 0]);
@@ -36,7 +28,22 @@ const setHysterisis = (lo, hi) => {
   }
 }
 
-const readTemp = (lo, hi) => {
+const init = async () => {
+	try {
+		await i2c.write(i2cAddr, [confAddr, configVal]);
+		await i2c.write(i2cAddr, tempAddr); // leave in temp read mode
+	}
+	catch(e) {
+		console.log('tempsens config write error',  e);
+	}
+
+	// S.B set from app settings  TODO
+	const tLowVal  = 35; // degs C,  95 F 
+	const tHighVal = 45; // degs C, 113 F
+	setHysterisis(tLowVal, tHighVal);
+}
+
+const readTemp = async (lo, hi) => {
   try {
     return (await i2c.read(i2cAddr))[0];
   }
@@ -45,9 +52,4 @@ const readTemp = (lo, hi) => {
   }
 }
 
-// S.B set from app settings  TODO
-const tLowVal  = 35; // degs C,  95 F 
-const tHighVal = 45; // degs C, 113 F
-setHysterisis(tLowVal, tHighVal);
-
-module.exports = {setHysterisis, readTemp};
+module.exports = {init, setHysterisis, readTemp};
