@@ -45,7 +45,7 @@ const settings = [
   [],                          // R
   [],                          // Z
   [['homingDir',         1],   // F
-   ['homeSpeed',      4000],   // F
+   ['homeSpeed',      4000], 
    ['homeBkupSpeed',  1200]],
   []                           // P
 ];

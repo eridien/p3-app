@@ -1,24 +1,22 @@
     
   eridien P3 motor controller MCU interface (version 0)
   -----------------------------------------------------
-  (should match eridien/mcu-motors respository for MCU version)
+  (this file should match eridien/mcu-motors respository for MCU version)
 
   Each MCU is an I2C slave.  Each motor in each MCU has its own I2C address.
   Each motor state is independent (except for error which stops entire mcu).
-  There is also an aux output pin.  (fan and buzzer in P3)
-  The MCU is coded for a PIC24F16KM202, other 16-bit mcus may work).
+  The MCU is coded for a PIC24F16KM202, other 16-bit mcus may work.
   There are 4 bipolar motors called A,B,C,D.
-  There are 3 limit switch inputs called 1,2,3.
-  Each limit switch can be mapped to a motor at run-time.
+  Each motor has a limit switch, which is configurable.
 
   The MCU controller has a specific unusual meaning for a "step".
-  It is a 1/8 micro-step which lets distance/speeds fit in 16 bits.
+  It is a 1/8 micro-step which lets distance/speeds fit in 16-bit uint.
 
   If using a 20-tooth GT2 pulley, then one step is 1/40 mm.
         steps/rev:        1600
         dist/rev:           40 mm
         dist/step         1/40 mm
-        max distance:      800 mm  (max step count: 32,767)
+        max distance:   +- 800 mm  -32,768 to 32,767
 
   all speed is in steps/sec
   accel is 0..7: none, 4000, 8000, 20000, 40000, 80000, 200000, 400000 steps/sec/sec
@@ -40,13 +38,14 @@
   0001 0101  motorOn     (power up motor by removing reset)
   0001 0110  fakeHome    set curpos to home pos value setting, turn motor on
   0001 0111  resetMcu    reboot this mcu
-  0000 01ss  specialRead next status bytes 2-3 is special value (ss 0: test pos, ss 1: misc)
+  0000 01ss  specialRead next status bytes 2-3 are special value 
+                              (ss 0: test pos, ss 1: misc)
 
   -- 2-byte move command --
   1aaa aaaa    top 7 bits of target position (always positive)
     aaaa aaaa  bottom 8 bits
 
-  -- 3-byte set position command --
+  -- 3-byte move command --
   0000 0001     set position
     aaaa aaaa   signed target position
     aaaa aaaa   bottom 8 bits
@@ -63,9 +62,19 @@
     aaaa aaaa  signed target position
     aaaa aaaa  bottom 8 bits
 
-  -- 2-byte jog command  (no bounds checking, does not need to be homed)
+  -- 2-byte jog command relative (no bounds checking, does not need to be homed)
   001d ssss    d: direction  
-    ssss ssss  s: number of steps
+    ssss ssss  s: number of steps (12 bits)
+
+  -- 3-byte jog command relative (no bounds checking, does not need to be homed)
+  0000 0010
+    aaaa aaaa  signed number of steps
+    aaaa aaaa  bottom 8 bits
+
+  -- 3-byte jog command absolute (no bounds checking, does not need to be homed)
+  0000 0011
+    aaaa aaaa  signed target position
+    aaaa aaaa  bottom 8 bits
 
   -- 3-byte to 23-byte settings command --
   write may be short, only setting first entries
@@ -83,11 +92,12 @@
     home pos value (set cur pos to this value after homing, usually 0)
     limit switch control   (see below)
     backlash distance    
+    max ustep value        5-wire unipolar must be 0    
     mcuClock;   // period of clock in usecs  (motor 0 applies to entire mcu)
 
   limit sw control word format for settings command above
-  0sss tttt hhhh 000p
-   sss: limit switch number, 0 is none
+  e000 tttt hhhh 000p
+     e  0: disabled, 1:enabled
   tttt  limit switch activity timeout, no change for tttt*64 steps => closed
   hhhh: limit switch activity hysteresis, hhhh*32 steps must be same
      p: switch polarity, 0: closed is low,  1: high
@@ -102,7 +112,7 @@
         b: busy     (homing, moving, or stopping)
         o: motor on (not in reset)
         h: homed    (motor has been homed since last reset)
-    2) aaaa aaaa  signed motor position, top 8 bits (or special value)
+    2) aaaa aaaa  signed motor position, top 8 bits (default, see special)
     3) aaaa aaaa  followed by bottom 8 bits
 
   Error codes for state byte above 
@@ -110,18 +120,19 @@
     OVERFLOW_ERROR      0x20  data received before last used
     CMD_DATA_ERROR      0x30  command format incorrect
     STEP_NOT_DONE_ERROR 0x40  step rate too fast for MCU
-    BOUNDS_ERROR        0x50  position < 0 or > max setting when moving
+    BOUNDS_ERROR        0x50  position < min or > max setting when moving
     NO_SETTINGS         0x60  no settings
     NOT_HOMED           0x70  move cmd when not homed
 
-specialRead S:0, test pos
+specialRead test pos     (result of Command 0x04)
+  aaaa aaaa    signed motor test position, top 8 bits
+    aaaa aaaa  followed by bottom 8 bits
   motor position is stored for testing when homing opens limit switch backing up
   this allows testing to make sure no steps are missed when doing move/home
-  Command 0x04 tells next status read to return this test position
-  This status read will have a status byte value of 0x08.
+  This status read will have a state byte value of 0x08.
 
-specialRead S:1, misc states
-  Command 0x05 tells next status read to return this set of state values
-  0000 0000 0000 000s
+specialRead misc states  (result of Command 0x05)
+  0000 0000 
+    0000 000s
     s:  Limit switch active (after possible inversion)
-  This status read will have a status byte value of 0x09.    
+  This status read will have a state byte value of 0x09.    

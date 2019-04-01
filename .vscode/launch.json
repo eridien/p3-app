@@ -18,7 +18,7 @@
       "port": 9229,
       "localRoot": "${workspaceFolder}",
       "remoteRoot": "/root/dev/p3/p3-srvr",
-      "stopOnEntry": false,
+      "stopOnEntry": true,
       "restart": true,
       "timeout": 1000000
     }
