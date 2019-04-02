@@ -25,16 +25,35 @@ const exp = require('./expander');
   try {
     // console.log('init temp sens');
 		// await tmp.init();
-		// setInterval( async () => {console.log(await tmp.readTemp())}, 2000);
+		// setInterval( async () => {
+		// 	const degc = await tmp.readTemp();
+		// 	console.log(degc.toFixed(1), ((degc * (9/5)) + 32).toFixed(1));
+		// }, 2000);
 
     console.log('init expander');
     await exp.init();
+    console.log('init done');
+
+		let onOff = false;
+		let buzInt;
+
     exp.onSwChg( async (on) => {
       if(on) {
-        await exp.setWifiLed(true);
+				buzInt = setInterval( ()=> {
+					exp.setBuzzer(onOff);
+					onOff = !onOff;
+				}, 1);
+				// await exp.setLights(3);
+        // await exp.setWifiLed(true);
+			  // await exp.setMotorLed(true);
+				// await exp.setBuzzer(true);
       }
-      else {     
-        await exp.setWifiLed(false); 
+      else { 
+				if(buzInt) clearInterval(buzInt);    
+				// await exp.setLights(0);
+        // await exp.setWifiLed(false); 
+			  // await exp.setMotorLed(false);
+				// await exp.setBuzzer(false);
       }
     });
 

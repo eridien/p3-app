@@ -54,20 +54,6 @@ const set = async (reg, data) => {
   }
 }
 
-const init = async () => {
-  try {
-    await set(trisReg, swMask);
-    await set(polInvReg, 0);
-    const treg = await get(trisReg);
-    const preg = await get(polInvReg);
-    if(treg != swMask || preg != 0)
-      throw new Error('exp init reg check failed:', {swMask, treg, preg});
-  }
-  catch(e) {
-    console.log('exp init error', e);
-  }
-}
-
 const readSw = async () => {
   try {
     // make sure these are adjacent in I2C queue
@@ -125,8 +111,20 @@ const chkSw = async () => {
   }
   forceCallback = false;
 };
-chkSw();
 
-setInterval( chkSw, 100 );
+const init = async () => {
+  try {
+    await set(trisReg, swMask);
+    await set(polInvReg, 0);
+    const treg = await get(trisReg);
+    const preg = await get(polInvReg);
+    if(treg != swMask || preg != 0)
+      throw new Error('exp init reg check failed');
+    setInterval( chkSw, 100 );
+  }
+  catch(e) {
+    console.log('exp init error', e);
+  }
+}
 
 module.exports = {init, setLights, setWifiLed, setMotorLed, setBuzzer, swOn, onSwChg};

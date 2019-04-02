@@ -12,9 +12,9 @@ const confAddr   = 1;
 const tLowAddr   = 2;
 const tHighAddr  = 3;
 
-// OS:0, R:0 (9 bits), FT:2 (4 faults), POL:1 (actv hi), CMP:0 (compare mode), SD:0 (on)  
-// 0001 0100
-const configVal = 0x14; 
+// OS:0, R:3 (12 bits), FT:2 (4 faults), POL:1 (actv hi), CMP:0 (compare mode), SD:0 (on)  
+// 0111 0100
+const configVal = 0x74; 
 
 const setHysterisis = async (lo, hi) => {
   try {
@@ -45,7 +45,8 @@ const init = async () => {
 
 const readTemp = async (lo, hi) => {
   try {
-    return (await i2c.read(i2cAddr))[0];
+		const bytes = await i2c.read(i2cAddr);
+    return bytes[0] + (bytes[1] / 256);
   }
   catch(e) {
     console.log('tempsens readTemp error', reg,  e);
