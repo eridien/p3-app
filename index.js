@@ -19,7 +19,7 @@ console.log('p3 server starting\n');
 
 // const tmp = require('./tempSens');
 
-const exp = require('./expander');
+// const exp = require('./expander');
 
 (async () => {
   try {
@@ -30,32 +30,32 @@ const exp = require('./expander');
 		// 	console.log(degc.toFixed(1), ((degc * (9/5)) + 32).toFixed(1));
 		// }, 2000);
 
-    console.log('init expander');
-    await exp.init();
-    console.log('init done');
+    // console.log('init expander');
+    // await exp.init();
+    // console.log('init done');
 
-		let onOff = false;
-		let buzInt;
+		// let onOff = false;
+		// let buzInt;
 
-    exp.onSwChg( async (on) => {
-      if(on) {
-				buzInt = setInterval( ()=> {
-					exp.setBuzzer(onOff);
-					onOff = !onOff;
-				}, 1);
-				// await exp.setLights(3);
-        // await exp.setWifiLed(true);
-			  // await exp.setMotorLed(true);
-				// await exp.setBuzzer(true);
-      }
-      else { 
-				if(buzInt) clearInterval(buzInt);    
-				// await exp.setLights(0);
-        // await exp.setWifiLed(false); 
-			  // await exp.setMotorLed(false);
-				// await exp.setBuzzer(false);
-      }
-    });
+    // exp.onSwChg( async (on) => {
+    //   if(on) {
+		// 		buzInt = setInterval( ()=> {
+		// 			exp.setBuzzer(onOff);
+		// 			onOff = !onOff;
+		// 		}, 1);
+		// 		// await exp.setLights(3);
+    //     // await exp.setWifiLed(true);
+		// 	  // await exp.setMotorLed(true);
+		// 		// await exp.setBuzzer(true);
+    //   }
+    //   else { 
+		// 		if(buzInt) clearInterval(buzInt);    
+		// 		// await exp.setLights(0);
+    //     // await exp.setWifiLed(false); 
+		// 	  // await exp.setMotorLed(false);
+		// 		// await exp.setBuzzer(false);
+    //   }
+    // });
 
     // const mot = require('./motor');
     // mot.reset('F');
@@ -72,8 +72,8 @@ const exp = require('./expander');
     // const tst = require('./test');
     // tst.init();
 
-    // const mot = require('./motor');
-    // await mot.init();
+    const mot = require('./motor');
+    await mot.init();
     // const ws = require('./websocket');
     // await ws.init();
 
