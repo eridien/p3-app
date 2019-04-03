@@ -83,6 +83,6 @@ console.log('p3 server starting\n');
 
   }
   catch (e) {
-    console.log('error starting:', e.message);
+    console.log('error starting:', e.message, e);
   };
 })();

@@ -8,8 +8,9 @@ const motors = [
   // MCU A
   // { name: 'X', i2cAddr: 0x04, mcu:0, descr: 'X-Axis'},
   // { name: 'Y', i2cAddr: 0x05, mcu:0, descr: 'Y-Axis'},
-  { name: 'H', i2cAddr: 0x06, mcu:0, descr: 'Height'  },
+  // { name: 'H', i2cAddr: 0x06, mcu:0, descr: 'Height'  },
   // { name: 'E', i2cAddr: 0x07, mcu:0, descr: 'Paster'},
+
   // MCU B       
   { name: 'R', i2cAddr: 0x08, mcu:1, descr: 'Rotation'},
   { name: 'Z', i2cAddr: 0x09, mcu:1, descr: 'Zoom'    },
@@ -40,7 +41,7 @@ const defSettings = [
 const settings = [
   // [],                          // X
   // [],                          // Y
-  [['limitSw',  0]],           // H
+  // [['limitSw',  0]],           // H
   // [['maxUStep', 0]],           // E
 
   [],                          // R
@@ -60,6 +61,7 @@ const motorByName = {};
 motors.forEach( (motor, idx) => {
   motor.idx               = idx;
   motorByName[motor.name] = motor;
+	motor.settings = {};
   defSettings  .forEach( (keyVal) => {motor.settings[keyVal[0]] = keyVal[1]});
   settings[idx].forEach( (keyVal) => {motor.settings[keyVal[0]] = keyVal[1]});
 });
@@ -222,6 +224,7 @@ const parseStatus = (motor, buf) => {
   const stateByte = buf[0];
   let pos = ((buf[1] << 8) | buf[2]);
   if (pos > 32767) pos -= 65536;
+	console.log(buf);
   return {
     version:     stateByte >> 7,
     name:        motor.name, 
@@ -340,8 +343,6 @@ const rpc = async (msgObj) => {
       case 'stopRst':           return stopRst(...args);
       case 'reset':             return reset(...args);
       case 'motorOn':           return motorOn(...args);
-      case 'fanOnOff':          return fanOnOff(...args);
-      case 'buzzerOnOff':       return buzzerOnOff(...args);
       case 'getStatus':         return getStatus(...args);
       case 'getTestPos':        return getTestPos(...args);
       case 'getMiscState':      return getMiscState(...args);
@@ -358,7 +359,7 @@ const rpc = async (msgObj) => {
 module.exports = {
 motors, motorByNameOrIdx, init, sendSettings,
   home, jog2r, jog3r, jog3a, setPos, fakeHome, move, 
-  stop, stopRst, reset, motorOn, fanOnOff, buzzerOnOff, reboot,
+  stop, stopRst, reset, motorOn, reboot,
   getStatus, getTestPos, getMiscState, getLimit, notBusy, rpc
 };
  
